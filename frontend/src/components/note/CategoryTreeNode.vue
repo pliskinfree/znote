@@ -67,7 +67,7 @@ const handleAddChild = (e: Event) => {
     <!-- 当前节点行 -->
     <div
       class="group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition"
-      :class="activeId === node.id ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-100'"
+      :class="activeId === node.id ? 'bg-blue-500/15 text-blue-300' : 'text-slate-300 hover:bg-slate-700/60'"
       :style="{ paddingLeft: `${8 + level * 16}px` }"
       @click="handleSelect"
       @mouseenter="hovered = true"
@@ -75,7 +75,7 @@ const handleAddChild = (e: Event) => {
     >
       <!-- 展开/折叠图标（叶子节点占位保持对齐） -->
       <button
-        class="flex h-4 w-4 shrink-0 items-center justify-center rounded transition hover:bg-slate-200/60"
+        class="flex h-4 w-4 shrink-0 items-center justify-center rounded transition hover:bg-slate-600/60"
         :class="{ 'opacity-0': !hasChildren() }"
         @click="toggleExpand"
       >
@@ -100,7 +100,7 @@ const handleAddChild = (e: Event) => {
       <!-- 悬停时显示的"新建子分类"按钮 -->
       <button
         v-show="hovered"
-        class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 transition hover:bg-blue-100 hover:text-blue-600"
+        class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 transition hover:bg-blue-500/20 hover:text-blue-300"
         :title="t('note.category.add_child')"
         @click="handleAddChild"
       >

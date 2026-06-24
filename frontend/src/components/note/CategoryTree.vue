@@ -57,7 +57,7 @@ const isEmpty = computed(() => props.tree.length === 0);
 
     <!-- 空态提示 -->
     <div v-else class="flex flex-col items-center gap-2 px-4 py-8 text-center">
-      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+      <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700/60">
         <ZIcon name="ri:folder-open-line" :size="20" color="#94a3b8" />
       </div>
       <p class="text-xs text-slate-400">{{ t("note.category.empty") }}</p>

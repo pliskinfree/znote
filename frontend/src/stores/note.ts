@@ -18,6 +18,30 @@ interface LoadingState {
     save: boolean;     // 创建/更新操作中
 }
 
+/** sessionStorage 存储 key 常量 */
+const SESSION_KEYS = {
+    notebook: "note-active-notebook-id",
+    category: "note-active-category-id",
+    note: "note-active-note-id",
+};
+
+/** 从 sessionStorage 读取 ID，无值时返回 null */
+const readSessionId = (key: string): number | null => {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : null;
+};
+
+/** 写入 sessionStorage（null 时清除） */
+const writeSessionId = (key: string, val: number | null): void => {
+    if (val === null) {
+        sessionStorage.removeItem(key);
+    } else {
+        sessionStorage.setItem(key, String(val));
+    }
+};
+
 /**
  * 把扁平数据组装成树形结构
  * 独立函数，方便在 getter 和 action 中复用
@@ -40,12 +64,12 @@ export const useNoteStore = defineStore("note", {
         loadedCategoryIds: new Set<number>(),
         /** 分类 id → 该分类下的笔记列表 */
         notesByCategory: {} as Record<number, Note[]>,
-        /** 当前选中的笔记本（顶层）id */
-        activeNotebookId: null as number | null,
-        /** 当前选中的分类 id（null 表示未选中） */
-        activeCategoryId: null as number | null,
-        /** 当前选中的笔记 id */
-        activeNoteId: null as number | null,
+        /** 当前选中的笔记本（顶层）id（优先从 sessionStorage 恢复） */
+        activeNotebookId: readSessionId(SESSION_KEYS.notebook),
+        /** 当前选中的分类 id（null 表示未选中）（优先从 sessionStorage 恢复） */
+        activeCategoryId: readSessionId(SESSION_KEYS.category),
+        /** 当前选中的笔记 id（优先从 sessionStorage 恢复） */
+        activeNoteId: readSessionId(SESSION_KEYS.note),
         /** 加载状态 */
         loading: {
             tree: false,
@@ -132,6 +156,7 @@ export const useNoteStore = defineStore("note", {
         /**
          * 加载笔记本树（首次进入工作台时调用）
          * 一次性拉全量数据，前端组装
+         * 如果 sessionStorage 中保存了上次选中的分类和笔记，一并恢复
          */
         async loadNotebookTree() {
             this.loading.tree = true;
@@ -142,9 +167,57 @@ export const useNoteStore = defineStore("note", {
                     .filter((nb) => nb.parent_id === null)
                     .sort((a, b) => a.sort_order - b.sort_order);
 
-                // 默认选中第一个顶层笔记本
+                // 默认选中第一个顶层笔记本（仅在 sessionStorage 无缓存时）
                 if (this.activeNotebookId === null && this.topNotebooks.length > 0) {
                     this.activeNotebookId = this.topNotebooks[0].id;
+                    writeSessionId(SESSION_KEYS.notebook, this.activeNotebookId);
+                } else if (this.activeNotebookId !== null) {
+                    // 校验恢复的 notebookId 是否有效，无效则清除
+                    const valid = this.allNotebooks.some((nb) => nb.id === this.activeNotebookId);
+                    if (!valid) {
+                        this.activeNotebookId = null;
+                        this.activeCategoryId = null;
+                        this.activeNoteId = null;
+                        writeSessionId(SESSION_KEYS.notebook, null);
+                        writeSessionId(SESSION_KEYS.category, null);
+                        writeSessionId(SESSION_KEYS.note, null);
+                    }
+                }
+
+                // 恢复上次选中的分类：加载该分类及所有后代分类的笔记缓存
+                if (this.activeCategoryId !== null) {
+                    const savedNoteId = this.activeNoteId;
+                    // 先清空笔记选中，保证后续恢复时（null→id）触发 watch 更新草稿
+                    this.activeNoteId = null;
+                    // 校验恢复的 categoryId 是否有效
+                    const catValid = this.allNotebooks.some((nb) => nb.id === this.activeCategoryId);
+                    if (!catValid) {
+                        this.activeCategoryId = null;
+                        writeSessionId(SESSION_KEYS.category, null);
+                        writeSessionId(SESSION_KEYS.note, null);
+                        return;
+                    }
+                    // 收集当前分类及所有后代 id
+                    const targetIds: number[] = [this.activeCategoryId];
+                    const collect = (id: number) => {
+                        this.allNotebooks.forEach((nb) => {
+                            if (nb.parent_id === id) {
+                                targetIds.push(nb.id);
+                                collect(nb.id);
+                            }
+                        });
+                    };
+                    collect(this.activeCategoryId);
+                    // 加载所有目标分类的笔记缓存
+                    for (const cid of targetIds) {
+                        if (!this.loadedCategoryIds.has(cid)) {
+                            await this.loadCategoryNotes(cid);
+                        }
+                    }
+                    // 恢复笔记选中
+                    if (savedNoteId !== null) {
+                        this.activeNoteId = savedNoteId;
+                    }
                 }
             } finally {
                 this.loading.tree = false;
@@ -153,20 +226,25 @@ export const useNoteStore = defineStore("note", {
 
         /**
          * 切换顶层笔记本
-         * 切换后重置分类选中状态
+         * 切换后重置分类选中状态，同步写入 sessionStorage
          */
         switchNotebook(id: number) {
             this.activeNotebookId = id;
             this.activeCategoryId = null;
             this.activeNoteId = null;
+            writeSessionId(SESSION_KEYS.notebook, id);
+            writeSessionId(SESSION_KEYS.category, null);
+            writeSessionId(SESSION_KEYS.note, null);
         },
 
         /**
-         * 选中分类，按需加载该分类下的笔记
+         * 选中分类，按需加载该分类下的笔记，同步写入 sessionStorage
          */
         async selectCategory(id: number | null) {
             this.activeCategoryId = id;
             this.activeNoteId = null;
+            writeSessionId(SESSION_KEYS.category, id);
+            writeSessionId(SESSION_KEYS.note, null);
             if (id !== null && !this.loadedCategoryIds.has(id)) {
                 await this.loadCategoryNotes(id);
             }
@@ -187,10 +265,11 @@ export const useNoteStore = defineStore("note", {
         },
 
         /**
-         * 选中笔记
+         * 选中笔记，同步写入 sessionStorage
          */
         selectNote(id: number | null) {
             this.activeNoteId = id;
+            writeSessionId(SESSION_KEYS.note, id);
         },
 
         /**

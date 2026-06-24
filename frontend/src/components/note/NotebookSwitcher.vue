@@ -45,6 +45,25 @@ const options = computed(() =>
 const handleChange = (value: number | null) => {
     emit("update:modelValue", value);
 };
+
+/** NSelect 深色主题覆盖（适配第一栏深色背景） */
+const selectDarkTheme = {
+    peers: {
+        InternalSelection: {
+            color: "rgba(71, 85, 105, 0.5)",          // slate-600/50
+            colorActive: "rgba(71, 85, 105, 0.7)",
+            colorFocus: "rgba(96, 165, 250, 0.25)",   // blue-400/25
+            border: "1px solid rgba(71, 85, 105, 0.6)",
+            borderHover: "1px solid rgba(96, 165, 250, 0.5)",
+            borderFocus: "1px solid rgba(96, 165, 250, 0.6)",
+            textColor: "rgb(226, 232, 240)",            // slate-200
+            placeholderColor: "rgba(148, 163, 184, 0.7)",
+        },
+        InternalSelectMenu: {
+            color: "rgb(30, 41, 59)",                  // slate-800
+        },
+    },
+};
 </script>
 
 <template>
@@ -57,12 +76,13 @@ const handleChange = (value: number | null) => {
         :placeholder="t('note.notebook.switcher.placeholder')"
         size="small"
         :consistent-menu-width="false"
+        :theme-overrides="selectDarkTheme"
         @update:value="handleChange"
       />
     </div>
     <!-- 新建笔记本按钮 -->
     <button
-      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200/60 bg-white text-slate-500 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
+      class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-600 bg-slate-700/50 text-slate-300 transition hover:border-blue-400 hover:bg-blue-500/20 hover:text-blue-300"
       :title="t('note.notebook.create.button')"
       @click="emit('create')"
     >

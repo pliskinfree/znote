@@ -331,15 +331,15 @@ const handleSaveTitle = async () => {
     <!-- ==================== 第一栏：导航 ==================== -->
     <aside
       :style="{ width: col1Width + 'px' }"
-      class="flex shrink-0 flex-col border-r border-slate-200/60 bg-white"
+      class="flex shrink-0 flex-col border-r border-slate-700/60 bg-slate-800 text-slate-200"
     >
       <!-- 用户信息 -->
-      <div class="border-b border-slate-200/60 p-3">
+      <div class="border-b border-slate-700/60 p-3">
         <UserHeader @navigate="handleNavigate" />
       </div>
 
       <!-- 笔记本下拉 + 新建按钮 -->
-      <div class="border-b border-slate-200/60 p-3">
+      <div class="border-b border-slate-700/60 p-3">
         <NotebookSwitcher
           :notebooks="noteStore.topNotebooks"
           :model-value="noteStore.activeNotebookId"
@@ -349,12 +349,12 @@ const handleSaveTitle = async () => {
       </div>
 
       <!-- 分类区域标题栏：我的笔记 + 新建分类按钮 -->
-      <div class="flex items-center justify-between border-b border-slate-200/60 px-3 py-2">
+      <div class="flex items-center justify-between border-b border-slate-700/60 px-3 py-2">
         <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">
           {{ t("note.category.header") }}
         </span>
         <button
-          class="flex h-6 w-6 items-center justify-center rounded text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
+          class="flex h-6 w-6 items-center justify-center rounded text-slate-400 transition hover:bg-slate-700/60 hover:text-blue-300"
           :disabled="noteStore.activeNotebookId === null"
           :title="t('note.category.add_child')"
           @click="handleAddTopCategory"
@@ -398,7 +398,7 @@ const handleSaveTitle = async () => {
     <div class="resize-handle" @mousedown="(e) => startResize(2, e)" />
 
     <!-- ==================== 第三栏：编辑器 ==================== -->
-    <main class="flex flex-1 flex-col overflow-hidden">
+    <main class="flex flex-1 flex-col overflow-hidden bg-white">
       <!-- 选中笔记时：编辑器 -->
       <template v-if="hasActiveNote && noteStore.activeNote">
         <!-- 顶部：可编辑标题 + 元信息 -->
@@ -434,7 +434,7 @@ const handleSaveTitle = async () => {
       </template>
 
       <!-- 未选中时：空态 -->
-      <div v-else class="flex flex-1 items-center justify-center bg-[#f7f8fa]">
+      <div v-else class="flex flex-1 items-center justify-center bg-white">
         <div class="flex flex-col items-center gap-3 text-center">
           <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
             <ZIcon name="ri:notebook-2-line" :size="32" color="#94a3b8" />

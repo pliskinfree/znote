@@ -66,7 +66,7 @@ const handleMenuSelect = (key: string) => {
   <!-- 用户信息卡片：头像 + 昵称 + 下拉 -->
   <NDropdown :options="userMenuOptions" trigger="click" @select="handleMenuSelect">
     <div
-      class="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200/60 bg-white px-3 py-2.5 transition hover:border-slate-300 hover:shadow-sm"
+      class="group flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-600/60 bg-slate-700/50 px-3 py-2.5 transition hover:border-slate-500"
     >
       <!-- 头像（无图时回退为首字母） -->
       <div
@@ -76,7 +76,7 @@ const handleMenuSelect = (key: string) => {
         <span v-else>{{ initial }}</span>
       </div>
       <div class="min-w-0 flex-1">
-        <div class="truncate text-sm font-medium text-slate-700">
+        <div class="truncate text-sm font-medium text-slate-100">
           {{ userStore.userInfo.username || t("dashboard.user.fallback") }}
         </div>
         <div class="truncate text-xs text-slate-400">
