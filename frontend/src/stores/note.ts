@@ -116,42 +116,21 @@ export const useNoteStore = defineStore("note", {
         },
 
         /**
-         * 第二栏展示用：当前选中分类下的"聚合"笔记列表
-         * 包含该节点及所有后代分类的笔记，去重后按"置顶+sort_order+创建时间"排序
-         * 与后端 listNotes 排序口径保持一致（聚合后需在此重新排序）
+         * 第二栏展示用：当前选中分类下的直属笔记列表
+         * 只取该分类自身的笔记（不含后代分类），排除软删除后排序
+         * 排序口径与后端 listNotes 一致：置顶在前 → sort_order 升序 → 创建时间倒序
          */
         displayedNotes(state): Note[] {
             if (state.activeCategoryId === null) return [];
 
-            // 收集当前分类及所有后代的 id
-            const targetIds = new Set<number>([state.activeCategoryId]);
-            const collect = (id: number) => {
-                state.allNotebooks.forEach((nb) => {
-                    if (nb.parent_id === id) {
-                        targetIds.add(nb.id);
-                        collect(nb.id);
-                    }
+            const list = state.notesByCategory[state.activeCategoryId] ?? [];
+            return list
+                .filter((n) => n.is_deleted === 0)
+                .sort((a, b) => {
+                    if (a.is_pinned !== b.is_pinned) return b.is_pinned - a.is_pinned;            // 置顶在前
+                    if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;       // sort_order 升序
+                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); // 创建时间倒序
                 });
-            };
-            collect(state.activeCategoryId);
-
-            // 合并所有目标分类下的笔记
-            const merged = new Map<number, Note>();
-            targetIds.forEach((cid) => {
-                const list = state.notesByCategory[cid] ?? [];
-                list.forEach((n) => {
-                    // 排除软删除
-                    if (n.is_deleted === 0) merged.set(n.id, n);
-                });
-            });
-
-            // 排序：置顶在前 → sort_order 升序 → 创建时间倒序
-            // 注意：用 created_at 而非 updated_at，避免修改笔记导致位置跳动
-            return Array.from(merged.values()).sort((a, b) => {
-                if (a.is_pinned !== b.is_pinned) return b.is_pinned - a.is_pinned;            // 置顶在前
-                if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;       // sort_order 升序
-                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime(); // 创建时间倒序
-            });
         },
     },
 
@@ -187,7 +166,7 @@ export const useNoteStore = defineStore("note", {
                     }
                 }
 
-                // 恢复上次选中的分类：加载该分类及所有后代分类的笔记缓存
+                // 恢复上次选中的分类：只加载该分类自身的笔记缓存
                 if (this.activeCategoryId !== null) {
                     const savedNoteId = this.activeNoteId;
                     // 先清空笔记选中，保证后续恢复时（null→id）触发 watch 更新草稿
@@ -200,22 +179,9 @@ export const useNoteStore = defineStore("note", {
                         writeSessionId(SESSION_KEYS.note, null);
                         return;
                     }
-                    // 收集当前分类及所有后代 id
-                    const targetIds: number[] = [this.activeCategoryId];
-                    const collect = (id: number) => {
-                        this.allNotebooks.forEach((nb) => {
-                            if (nb.parent_id === id) {
-                                targetIds.push(nb.id);
-                                collect(nb.id);
-                            }
-                        });
-                    };
-                    collect(this.activeCategoryId);
-                    // 加载所有目标分类的笔记缓存
-                    for (const cid of targetIds) {
-                        if (!this.loadedCategoryIds.has(cid)) {
-                            await this.loadCategoryNotes(cid);
-                        }
+                    // 只加载当前分类的笔记缓存
+                    if (!this.loadedCategoryIds.has(this.activeCategoryId)) {
+                        await this.loadCategoryNotes(this.activeCategoryId);
                     }
                     // 恢复笔记选中
                     if (savedNoteId !== null) {

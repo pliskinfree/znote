@@ -49,7 +49,7 @@ const isPinned = computed(() => props.note.is_pinned === 1);
 
 <template>
   <div
-    class="group flex cursor-pointer items-start gap-1 rounded-lg border px-3 py-2.5 transition"
+    class="group flex cursor-pointer items-center gap-1 rounded-lg border px-3 py-2.5 transition"
     :class="
       active
         ? 'border-blue-400 bg-blue-50/50 shadow-sm'
@@ -58,16 +58,20 @@ const isPinned = computed(() => props.note.is_pinned === 1);
     @click="emit('select', note.id)"
     @contextmenu.prevent="(e: MouseEvent) => emit('contextmenu', note, e)"
   >
-    <!-- 拖拽把手：仅 draggable 为 true 时显示，hover 卡片时出现 -->
+    <!-- 拖拽把手：始终占位，非置顶笔记 hover 时显示并可拖拽；置顶笔记恒不可见不响应 -->
     <div
-      v-if="draggable"
-      class="drag-handle mt-0.5 shrink-0 cursor-grab opacity-0 transition group-hover:opacity-100 active:cursor-grabbing"
+      class="drag-handle shrink-0 transition"
+      :class="
+        draggable
+          ? 'cursor-grab opacity-0 group-hover:opacity-100 active:cursor-grabbing'
+          : 'pointer-events-none opacity-0'
+      "
     >
       <ZIcon name="ri:draggable" :size="14" color="#94a3b8" />
     </div>
 
     <!-- 内容区 -->
-    <div class="min-w-0 flex-1">
+    <div class="min-w-0 flex-1 pr-1">
       <!-- 标题行：标题 + 置顶标记 -->
       <div class="flex items-center gap-1.5">
         <ZIcon

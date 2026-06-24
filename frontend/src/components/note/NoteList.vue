@@ -62,13 +62,12 @@ const filteredNotes = computed(() => {
 
 /**
  * 是否允许拖拽排序
- * 条件：无搜索关键词 + 列表非空 + 所有笔记同属一个 notebook（非聚合视图）
+ * 条件：无搜索关键词 + 列表非空
+ * （不再聚合后代分类，所有笔记天然同属一个 notebook，无需额外校验）
  */
 const canDrag = computed(() => {
     if (keyword.value.trim()) return false;
-    if (localNotes.value.length === 0) return false;
-    const notebookId = localNotes.value[0].notebook_id;
-    return localNotes.value.every((n) => n.notebook_id === notebookId);
+    return localNotes.value.length > 0;
 });
 
 /**
