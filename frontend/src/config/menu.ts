@@ -1,5 +1,11 @@
 export const menuConfig = [
     {
+        id: "notes",
+        titleKey: "menu.notes",
+        icon: "ri:notebook-2-line",
+        route: "/note",
+    },
+    {
         id: "home",
         titleKey: "dashboard.home",
         icon: "ri:dashboard-line",

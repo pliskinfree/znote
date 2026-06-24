@@ -1,0 +1,39 @@
+/**
+ * 笔记 API 封装层
+ *
+ * 与后端 routers.ts 中的 userRouter.notebook.note.* 路由对应。
+ * 笔记的增删改查都基于 notebook_id（分类 id）。
+ */
+import req from "@/utils/req";
+import type { CreateNotePayload, Note } from "@/types/note";
+
+interface ApiResult<T> {
+    code: number;
+    msg: string;
+    data: T;
+}
+
+/**
+ * 获取指定分类下的笔记列表（不含软删除）
+ * @param notebookId 分类 id
+ */
+export const fetchNoteList = async (notebookId: number): Promise<Note[]> => {
+    const res = await req.get<ApiResult<Note[]>>("/api/user/notebook/note/list", {
+        params: { notebook_id: notebookId },
+    });
+    if (res.data?.code === 200) {
+        return res.data.data ?? [];
+    }
+    return [];
+};
+
+/**
+ * 创建笔记
+ */
+export const createNote = async (payload: CreateNotePayload): Promise<Note | null> => {
+    const res = await req.post<ApiResult<Note>>("/api/user/notebook/note/create", payload);
+    if (res.data?.code === 200) {
+        return res.data.data;
+    }
+    return null;
+};

@@ -1,0 +1,134 @@
+<script setup lang="ts">
+/**
+ * 分类树节点（递归组件）
+ *
+ * 支持无限层级，通过 name 引用自身实现递归渲染。
+ * 每个节点支持：
+ *  - 点击：选中分类
+ *  - hover 显示"+"：新建子分类
+ *  - 展开/折叠：子节点显示隐藏
+ *  - TODO: 拖拽排序（v2）
+ */
+import { ref } from "vue";
+import { useI18n } from "vue-i18n";
+import ZIcon from "@/components/DynamicIcon.vue";
+import type { NotebookNode } from "@/types/note";
+
+const { t } = useI18n();
+
+const props = defineProps<{
+    node: NotebookNode;
+    /** 当前激活的分类 id */
+    activeId: number | null;
+    /** 节点在树中的深度（用于样式缩进） */
+    level: number;
+}>();
+
+const emit = defineEmits<{
+    (e: "select", id: number): void;
+    (e: "addChild", id: number, title: string): void;
+}>();
+
+/** 展开/折叠状态 */
+const expanded = ref(true);
+/** 鼠标是否悬停（用于显示"+"按钮） */
+const hovered = ref(false);
+
+/** 是否有子节点 */
+const hasChildren = () => props.node.children.length > 0;
+
+/** 切换展开 */
+const toggleExpand = (e: Event) => {
+    e.stopPropagation();
+    if (hasChildren()) {
+        expanded.value = !expanded.value;
+    }
+};
+
+/** 选中节点 */
+const handleSelect = () => {
+    emit("select", props.node.id);
+};
+
+/** 触发新建子分类（弹原生 prompt，简单实现） */
+const handleAddChild = (e: Event) => {
+    e.stopPropagation();
+    // 展开当前节点
+    expanded.value = true;
+    // 弹出 prompt 让用户输入分类名
+    const title = window.prompt(t("note.category.create.placeholder"));
+    if (title && title.trim()) {
+        emit("addChild", props.node.id, title.trim());
+    }
+};
+</script>
+
+<template>
+  <div class="select-none">
+    <!-- 当前节点行 -->
+    <div
+      class="group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition"
+      :class="activeId === node.id ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-100'"
+      :style="{ paddingLeft: `${8 + level * 16}px` }"
+      @click="handleSelect"
+      @mouseenter="hovered = true"
+      @mouseleave="hovered = false"
+    >
+      <!-- 展开/折叠图标（叶子节点占位保持对齐） -->
+      <button
+        class="flex h-4 w-4 shrink-0 items-center justify-center rounded transition hover:bg-slate-200/60"
+        :class="{ 'opacity-0': !hasChildren() }"
+        @click="toggleExpand"
+      >
+        <ZIcon
+          :name="expanded ? 'ri:arrow-down-s-line' : 'ri:arrow-right-s-line'"
+          :size="14"
+          color="currentColor"
+        />
+      </button>
+
+      <!-- 文件夹图标 -->
+      <ZIcon
+        :name="activeId === node.id ? 'ri:folder-open-line' : 'ri:folder-line'"
+        :size="15"
+        color="currentColor"
+        class="shrink-0"
+      />
+
+      <!-- 节点标题 -->
+      <span class="flex-1 truncate">{{ node.title }}</span>
+
+      <!-- 悬停时显示的"新建子分类"按钮 -->
+      <button
+        v-show="hovered"
+        class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 transition hover:bg-blue-100 hover:text-blue-600"
+        :title="t('note.category.add_child')"
+        @click="handleAddChild"
+      >
+        <ZIcon name="ri:add-line" :size="14" color="currentColor" />
+      </button>
+    </div>
+
+    <!-- 递归渲染子节点（无嵌套滚动条，滚动由外层容器统一处理） -->
+    <div v-if="hasChildren() && expanded">
+      <CategoryTreeNode
+        v-for="child in node.children"
+        :key="child.id"
+        :node="child"
+        :active-id="activeId"
+        :level="level + 1"
+        @select="(id: number) => emit('select', id)"
+        @add-child="(id: number, title: string) => emit('addChild', id, title)"
+      />
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+/**
+ * 组件名显式声明，Vue 递归组件需要
+ */
+export default {
+    name: "CategoryTreeNode",
+};
+</script>

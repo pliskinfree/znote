@@ -34,7 +34,7 @@ onMounted(() => {
             <NButton type="primary" size="large" @click="router.push(status.initialized ? '/user/login' : '/user/init')">
               {{ status.initialized ? t('home.goto_login') : t('home.init_system') }}
             </NButton>
-            <NButton size="large" @click="router.push('/dashboard/home')">{{ t("home.goto_dashboard") }}</NButton>
+            <NButton size="large" @click="router.push('/note')">{{ t("home.goto_dashboard") }}</NButton>
           </NSpace>
         </section>
 
