@@ -138,12 +138,6 @@ watch(
                 >
                   {{ t("note.version.view") }}
                 </button>
-                <button
-                  class="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-500 transition hover:border-blue-300 hover:text-blue-600"
-                  type="button"
-                >
-                  {{ t("note.version.restore") }}
-                </button>
               </div>
             </div>
           </div>
