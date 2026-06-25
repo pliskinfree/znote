@@ -183,6 +183,10 @@ const handleContextMenu = (note: Note, e: MouseEvent) => {
  * - pin：智能切换 is_pinned 0/1，更新后本地缓存自动同步
  */
 const handleMenuSelect = async (action: NoteContextAction, note: Note) => {
+    if (action === "open_new_window") {
+        window.open(`/note/${note.id}`, "_blank");
+        return;
+    }
     if (action === "trash") {
         await noteStore.deleteNote(note.id);
         message.success(t("note.context.trash.success"));

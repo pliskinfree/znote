@@ -467,8 +467,11 @@ export const useNoteStore = defineStore("note", {
                 await this.loadCategoryNotes(note.notebook_id);
             }
 
-            // 5. 选中笔记（缓存已有，走 selectNote 的缓存分支秒出）
-            await this.selectNote(noteId);
+            // 5. 直接使用已获取的笔记数据，避免二次 API 请求
+            this.activeNoteId = noteId;
+            writeSessionId(SESSION_KEYS.note, noteId);
+            this.activeNoteData = note;
+            this.loading.noteDetail = false;
         },
 
         /**

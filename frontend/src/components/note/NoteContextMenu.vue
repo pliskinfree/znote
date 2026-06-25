@@ -17,7 +17,7 @@ import ZIcon from "@/components/DynamicIcon.vue";
 import type { Note } from "@/types/note";
 
 /** 右键菜单可触发的操作 */
-export type NoteContextAction = "trash" | "pin" | "move";
+export type NoteContextAction = "trash" | "pin" | "move" | "open_new_window";
 
 const props = defineProps<{
     /** 菜单是否显示 */
@@ -51,6 +51,11 @@ const isPinned = computed(() => props.note?.is_pinned === 1);
 /** 菜单选项配置 */
 const menuOptions = computed(() => [
     {
+        label: t("note.context.open_new_window"),
+        key: "open_new_window",
+        icon: () => h(ZIcon, { name: "ri:external-link-line", size: 16 }),
+    },
+    {
         label: t("note.context.move_note"),
         key: "move",
         icon: () => h(ZIcon, { name: "ri:arrow-right-circle-line", size: 16 }),
@@ -69,7 +74,7 @@ const menuOptions = computed(() => [
 
 /** NDropdown 选中某项时：转发给父组件处理，并关闭菜单 */
 const handleSelect = (key: string) => {
-    if (props.note && (key === "trash" || key === "pin" || key === "move")) {
+    if (props.note && (key === "trash" || key === "pin" || key === "move" || key === "open_new_window")) {
         emit("select", key as NoteContextAction, props.note);
     }
     emit("update:show", false);

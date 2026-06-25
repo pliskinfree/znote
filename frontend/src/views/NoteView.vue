@@ -306,8 +306,8 @@ onMounted(async () => {
     await userStore.getUserInfo();
     await noteStore.loadNotebookTree();
 
-    // Deep-link：URL 带有 noteId 但笔记不在缓存中时，自动定位到所属分类并加载
-    if (route.params.noteId && !noteStore.activeNote) {
+    // Deep-link：URL 带有 noteId 时，自动定位到所属分类并从 API 加载笔记
+    if (route.params.noteId) {
         await noteStore.locateAndSelectNote(Number(route.params.noteId));
     }
 

@@ -219,6 +219,7 @@ export default {
     "note.move.current": "Current",
     "note.move.save": "Save",
     "note.move.success": "Moved successfully",
+    "note.context.open_new_window": "Open in New Window",
     "note.context.move_note": "Move Note",
     "note.context.move_category": "Move Category",
     "note.mobile.back": "Back",
