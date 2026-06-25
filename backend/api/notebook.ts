@@ -12,21 +12,34 @@ type NotebookTreeNode = NotebookFlat & {
 };
 
 /**
- * 把扁平笔记本列表组装成树形结构
+ * 把扁平笔记本列表组装成树形结构（O(n) 单次遍历）
  * - 顶层为 parent_id 为 null 的节点
- * - 递归挂 children，依赖入参已按 sort_order 排序的特性（filter 保持相对顺序）
+ * - 用 Map 做 O(1) 查找，children 保持 sort_order 相对顺序
  * @param flatList 已按 sort_order 升序排序的扁平列表
  */
 const buildNotebookTree = (flatList: NotebookFlat[]): NotebookTreeNode[] => {
-    const buildNode = (node: NotebookFlat): NotebookTreeNode => {
-        const children = flatList
-            .filter((nb) => nb.parent_id === node.id)
-            .map(buildNode);
-        return { ...node, children };
-    };
-    return flatList
-        .filter((nb) => nb.parent_id === null)
-        .map(buildNode);
+    const nodeMap = new Map<number, NotebookTreeNode>();
+    const roots: NotebookTreeNode[] = [];
+
+    // 第一遍：预创建所有节点
+    for (const node of flatList) {
+        nodeMap.set(node.id, { ...node, children: [] });
+    }
+
+    // 第二遍：挂载到父节点
+    for (const node of flatList) {
+        const treeNode = nodeMap.get(node.id)!;
+        if (node.parent_id === null) {
+            roots.push(treeNode);
+        } else {
+            const parent = nodeMap.get(node.parent_id);
+            if (parent) {
+                parent.children.push(treeNode);
+            }
+        }
+    }
+
+    return roots;
 };
 
 /**
