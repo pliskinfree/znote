@@ -16,6 +16,8 @@ const props = defineProps<{
     draggable?: boolean;
     /** 所属分类名（搜索态下显示，正常态不传则不显示） */
     categoryName?: string;
+    /** 是否为移动端视口 */
+    isMobile: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -65,7 +67,9 @@ const isPinned = computed(() => props.note.is_pinned === 1);
       class="drag-handle shrink-0 transition"
       :class="
         draggable
-          ? 'cursor-grab opacity-0 group-hover:opacity-100 active:cursor-grabbing'
+          ? props.isMobile
+            ? 'cursor-grab opacity-100 active:cursor-grabbing'
+            : 'cursor-grab opacity-0 group-hover:opacity-100 active:cursor-grabbing'
           : 'pointer-events-none opacity-0'
       "
     >

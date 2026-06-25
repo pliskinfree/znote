@@ -36,6 +36,8 @@ const props = defineProps<{
     loading: boolean;
     /** 是否禁用"新建笔记"按钮（如未选中分类时） */
     disabledCreate?: boolean;
+    /** 是否为移动端视口 */
+    isMobile: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -258,6 +260,7 @@ const handleMoveCancel = () => {
             :note="note"
             :active="activeId === note.id"
             :category-name="noteStore.getCategoryName(note.notebook_id)"
+            :is-mobile="props.isMobile"
             @select="(id: number) => emit('select', id)"
             @contextmenu="handleContextMenu"
           />
@@ -290,6 +293,7 @@ const handleMoveCancel = () => {
           :note="note"
           :active="activeId === note.id"
           :draggable="!note.is_pinned"
+          :is-mobile="props.isMobile"
           @select="(id: number) => emit('select', id)"
           @contextmenu="handleContextMenu"
         />
@@ -302,6 +306,7 @@ const handleMoveCancel = () => {
           :key="note.id"
           :note="note"
           :active="activeId === note.id"
+          :is-mobile="props.isMobile"
           @select="(id: number) => emit('select', id)"
           @contextmenu="handleContextMenu"
         />

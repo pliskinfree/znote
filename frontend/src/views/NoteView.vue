@@ -643,6 +643,7 @@ const handleSaveTitle = async () => {
         :active-id="noteStore.activeNoteId"
         :loading="noteStore.loading.notes"
         :disabled-create="noteStore.activeCategoryId === null"
+        :is-mobile="isMobile"
         @select="handleSelectNote"
         @create="handleOpenCreateNote"
       />
@@ -798,11 +799,10 @@ const handleSaveTitle = async () => {
   </div>
 
   <!-- ==================== 移动端：单栏切换布局 ==================== -->
-  <div v-else class="flex h-screen w-screen flex-col overflow-hidden bg-white">
-    <!-- 顶部导航栏 -->
-    <div class="flex shrink-0 items-center gap-2 border-b border-slate-200/60 px-3 py-2">
+  <div v-else class="flex h-screen w-screen flex-col overflow-hidden bg-white pt-[48px]">
+    <!-- 顶部导航栏（固定） -->
+    <div class="fixed top-0 left-0 right-0 z-10 flex items-center gap-2 border-b border-slate-200/60 bg-white px-3 py-2">
       <button
-        v-if="!hasActiveNote"
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-600 transition hover:bg-slate-100"
         :title="t('note.mobile.menu')"
         @click="drawerOpen = !drawerOpen"
@@ -810,25 +810,23 @@ const handleSaveTitle = async () => {
         <ZIcon name="ri:menu-line" :size="20" color="currentColor" />
       </button>
       <button
-        v-else
-        class="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-sm text-blue-600 transition hover:bg-blue-50"
+        v-if="hasActiveNote"
+        class="flex shrink-0 items-center gap-1 rounded px-2 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
         @click="handleMobileBack"
       >
         <ZIcon name="ri:arrow-left-line" :size="18" color="currentColor" />
         <span>{{ t("note.mobile.back") }}</span>
       </button>
-      <span class="truncate text-sm font-medium text-slate-700">ZNote</span>
     </div>
 
     <!-- 侧边栏抽屉（Teleport 到 body 避免层叠上下文问题） -->
     <Teleport to="body">
       <div
-        v-show="drawerOpen"
         class="fixed inset-0 z-50"
-        @click.self="drawerOpen = false"
+        :class="drawerOpen ? 'pointer-events-auto' : 'pointer-events-none'"
       >
-        <div class="absolute inset-0 bg-black/40" @click="drawerOpen = false" />
-        <div class="absolute left-0 top-0 bottom-0 flex w-72 flex-col bg-slate-800 text-slate-200 shadow-2xl">
+        <div class="absolute inset-0 bg-black/40 transition-opacity duration-300" :class="drawerOpen ? 'opacity-100' : 'opacity-0'" @click="drawerOpen = false" />
+        <div class="absolute left-0 top-0 bottom-0 flex w-72 flex-col bg-slate-800 text-slate-200 shadow-2xl transition-transform duration-300" :class="drawerOpen ? 'translate-x-0' : '-translate-x-full'">
           <div class="flex items-center justify-between border-b border-slate-700/60 px-3 py-3">
             <span class="text-sm font-medium">ZNote</span>
             <button
@@ -878,6 +876,7 @@ const handleSaveTitle = async () => {
               v-else
               :tree="currentCategoryTree"
               :active-id="noteStore.activeCategoryId"
+              :is-mobile="isMobile"
               @select="handleSelectCategory"
               @request-dialog="(pid: number, pname: string) => openCreateCategoryDialog(pid, pname)"
               @contextmenu="handleCategoryContextMenu"
@@ -894,6 +893,7 @@ const handleSaveTitle = async () => {
         :active-id="noteStore.activeNoteId"
         :loading="noteStore.loading.notes"
         :disabled-create="noteStore.activeCategoryId === null"
+        :is-mobile="isMobile"
         @select="handleSelectNote"
         @create="handleOpenCreateNote"
       />
