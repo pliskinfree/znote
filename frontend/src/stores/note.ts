@@ -363,12 +363,77 @@ export const useNoteStore = defineStore("note", {
          * 更新笔记本/分类
          * 更新成功后递归更新树中对应节点（保留 children 结构）
          */
-        async updateNotebook(id: number, payload: { title?: string; description?: string }) {
+        async updateNotebook(id: number, payload: { title?: string; description?: string; parent_id?: number | null }) {
             this.loading.save = true;
             try {
                 const result = await notebookApi.updateNotebook(id, payload);
                 if (result) {
                     this.notebookTree = updateNodeInTree(this.notebookTree, id, result);
+                }
+                return result;
+            } finally {
+                this.loading.save = false;
+            }
+        },
+
+        /**
+         * 移动分类到新的父节点
+         * 移动后整个树结构发生变化，直接重载树
+         * @param id 被移动的分类 ID
+         * @param parentId 目标父节点 ID（null 表示移到顶层）
+         */
+        async moveCategory(id: number, parentId: number | null) {
+            this.loading.save = true;
+            try {
+                const result = await notebookApi.updateNotebook(id, { parent_id: parentId });
+                if (result) {
+                    await this.loadNotebookTree();
+                }
+                return result;
+            } finally {
+                this.loading.save = false;
+            }
+        },
+
+        /**
+         * 移动笔记到新的分类
+         * 移动后从旧分类缓存中移除，并写入目标分类缓存
+         * @param id 被移动的笔记 ID
+         * @param targetCategoryId 目标分类 ID
+         */
+        async moveNote(id: number, targetCategoryId: number) {
+            this.loading.save = true;
+            try {
+                const oldCategoryId = this.noteMap.get(id)?.notebook_id;
+                const result = await noteApi.updateNote(id, { notebook_id: targetCategoryId });
+                if (result) {
+                    // 从旧分类缓存中移除
+                    if (oldCategoryId !== undefined) {
+                        const oldList = this.notesByCategory[oldCategoryId];
+                        if (oldList) {
+                            this.notesByCategory = {
+                                ...this.notesByCategory,
+                                [oldCategoryId]: oldList.filter((n) => n.id !== id),
+                            };
+                        }
+                    }
+                    // 将笔记写入目标分类缓存（若已加载则追加，未加载则后续 selectCategory 会加载）
+                    if (this.loadedCategoryIds.has(targetCategoryId)) {
+                        const targetList = this.notesByCategory[targetCategoryId] ?? [];
+                        this.notesByCategory = {
+                            ...this.notesByCategory,
+                            [targetCategoryId]: [result, ...targetList],
+                        };
+                    }
+                    // 搜索态下同步更新
+                    if (this.searchMode) {
+                        const sidx = this.searchResults.findIndex((n) => n.id === id);
+                        if (sidx !== -1) {
+                            this.searchResults = this.searchResults.map((n, i) =>
+                                i === sidx ? result : n,
+                            );
+                        }
+                    }
                 }
                 return result;
             } finally {

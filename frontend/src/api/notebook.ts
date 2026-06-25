@@ -56,7 +56,10 @@ export const createNotebook = async (payload: CreateNotebookPayload): Promise<No
  * 更新笔记本/分类（部分更新）
  * 支持更新 title、description 等字段
  */
-export const updateNotebook = async (id: number, payload: { title?: string; description?: string }): Promise<Notebook | null> => {
+export const updateNotebook = async (
+    id: number,
+    payload: { title?: string; description?: string; parent_id?: number | null },
+): Promise<Notebook | null> => {
     const res = await req.post<ApiResult<Notebook>>("/api/user/notebook/update", { id, ...payload });
     if (res.data?.code === 200) {
         return res.data.data;

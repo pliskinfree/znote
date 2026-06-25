@@ -22,6 +22,7 @@ import { useI18n } from "vue-i18n";
 import ZIcon from "@/components/DynamicIcon.vue";
 import NoteListItem from "@/components/note/NoteListItem.vue";
 import NoteContextMenu, { type NoteContextAction } from "@/components/note/NoteContextMenu.vue";
+import MoveDialog from "@/components/note/dialogs/MoveDialog.vue";
 import { useNoteStore } from "@/stores/note";
 import type { Note } from "@/types/note";
 
@@ -154,6 +155,18 @@ const menuY = ref(0);
 /** 当前右键的笔记 */
 const menuNote = ref<Note | null>(null);
 
+// ==================== 移动弹窗状态 ====================
+
+/** 移动弹窗显隐 */
+const showMoveDialog = ref(false);
+/** 被移动的笔记 */
+const moveNote = ref<Note | null>(null);
+
+/** 当前笔记本下的分类树（用于移动对话框） */
+const currentCategoryTree = computed(() => {
+    return noteStore.activeNotebook?.children ?? [];
+});
+
 /** 右键笔记项时：记录坐标并打开菜单 */
 const handleContextMenu = (note: Note, e: MouseEvent) => {
     menuNote.value = note;
@@ -173,10 +186,28 @@ const handleMenuSelect = async (action: NoteContextAction, note: Note) => {
         message.success(t("note.context.trash.success"));
         return;
     }
+    if (action === "move") {
+        moveNote.value = note;
+        showMoveDialog.value = true;
+        return;
+    }
     // pin：智能切换置顶状态
     const next = note.is_pinned === 1 ? 0 : 1;
     await noteStore.updateNote(note.id, { is_pinned: next });
     message.success(next === 1 ? t("note.context.pin.success") : t("note.context.unpin.success"));
+};
+
+/** 确认移动笔记 */
+const handleMoveConfirm = async (targetId: number) => {
+    if (!moveNote.value) return;
+    await noteStore.moveNote(moveNote.value.id, targetId);
+    message.success(t("note.move.success"));
+    showMoveDialog.value = false;
+};
+
+/** 取消移动 */
+const handleMoveCancel = () => {
+    showMoveDialog.value = false;
 };
 </script>
 
@@ -298,6 +329,18 @@ const handleMenuSelect = async (action: NoteContextAction, note: Note) => {
       :y="menuY"
       :note="menuNote"
       @select="handleMenuSelect"
+    />
+
+    <!-- 移动笔记弹窗 -->
+    <MoveDialog
+      v-model:show="showMoveDialog"
+      type="note"
+      :source-id="moveNote?.id ?? 0"
+      :source-name="moveNote?.title ?? ''"
+      :notebook-tree="currentCategoryTree"
+      :current-category-id="noteStore.activeCategoryId ?? undefined"
+      @confirm="handleMoveConfirm"
+      @cancel="handleMoveCancel"
     />
   </div>
 </template>

@@ -22,6 +22,7 @@ import NoteEditor from "@/components/note/NoteEditor.vue";
 import NoteMetaBar from "@/components/note/NoteMetaBar.vue";
 import CreateNotebookDialog from "@/components/note/dialogs/CreateNotebookDialog.vue";
 import ImportDialog from "@/components/note/dialogs/ImportDialog.vue";
+import MoveDialog from "@/components/note/dialogs/MoveDialog.vue";
 import CategoryContextMenu from "@/components/note/CategoryContextMenu.vue";
 import { useNoteStore } from "@/stores/note";
 import { useUserStore } from "@/stores/user";
@@ -64,6 +65,45 @@ const showRenameDialog = ref(false);
 const renameValue = ref("");
 /** 重命名目标节点 */
 const renameTarget = ref<NotebookNode | null>(null);
+
+// ==================== 移动弹窗 ====================
+
+/** 移动弹窗显隐 */
+const showMoveDialog = ref(false);
+/** 移动类型 */
+const moveDialogType = ref<"note" | "category">("category");
+/** 被移动实体 ID */
+const moveSourceId = ref(0);
+/** 被移动实体名称 */
+const moveSourceName = ref("");
+/** 需要排除的目标节点 ID（移动分类时为自身及子孙） */
+const moveExcludeIds = ref<number[]>([]);
+/** 当前所在分类 ID（高亮标记） */
+const moveCurrentCategoryId = ref<number | null>(null);
+
+/**
+ * 递归收集节点的所有子孙 id（用于构建排除列表）
+ */
+const collectDescendantIds = (rootId: number, tree: NotebookNode[]): number[] => {
+    for (const node of tree) {
+        if (node.id === rootId) {
+            const ids: number[] = [node.id];
+            const collect = (n: NotebookNode) => {
+                for (const child of n.children) {
+                    ids.push(child.id);
+                    collect(child);
+                }
+            };
+            collect(node);
+            return ids;
+        }
+        if (node.children.length > 0) {
+            const found = collectDescendantIds(rootId, node.children);
+            if (found.length > 0) return found;
+        }
+    }
+    return [];
+};
 
 // ==================== 编辑器草稿状态 ====================
 
@@ -243,6 +283,13 @@ const handleCategoryMenuSelect = (action: CategoryContextAction, node: NotebookN
         renameValue.value = node.title;
         renameTarget.value = node;
         showRenameDialog.value = true;
+    } else if (action === "move") {
+        moveDialogType.value = "category";
+        moveSourceId.value = node.id;
+        moveSourceName.value = node.title;
+        moveExcludeIds.value = collectDescendantIds(node.id, noteStore.notebookTree);
+        moveCurrentCategoryId.value = node.id;
+        showMoveDialog.value = true;
     }
 };
 
@@ -254,6 +301,20 @@ const handleConfirmRename = async () => {
         message.success(t("note.category.rename.success"));
     }
     showRenameDialog.value = false;
+};
+
+/** 确认移动 */
+const handleMoveConfirm = async (targetId: number) => {
+    if (moveDialogType.value === "category") {
+        await noteStore.moveCategory(moveSourceId.value, targetId);
+        message.success(t("note.move.success"));
+    }
+    showMoveDialog.value = false;
+};
+
+/** 取消移动 */
+const handleMoveCancel = () => {
+    showMoveDialog.value = false;
 };
 
 /** 打开"新建子分类"Dialog（由 CategoryTree 节点 requestDialog 触发） */
@@ -532,6 +593,19 @@ const handleSaveTitle = async () => {
         @keydown.enter="handleConfirmRename"
       />
     </NModal>
+
+    <!-- ==================== 移动弹窗 ==================== -->
+    <MoveDialog
+      v-model:show="showMoveDialog"
+      :type="moveDialogType"
+      :source-id="moveSourceId"
+      :source-name="moveSourceName"
+      :notebook-tree="currentCategoryTree"
+      :exclude-node-ids="moveExcludeIds"
+      :current-category-id="moveCurrentCategoryId ?? undefined"
+      @confirm="handleMoveConfirm"
+      @cancel="handleMoveCancel"
+    />
 
     <!-- ==================== Dialogs ==================== -->
     <!-- 新建笔记本 -->

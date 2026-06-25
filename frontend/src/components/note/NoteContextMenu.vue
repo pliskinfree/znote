@@ -6,6 +6,7 @@
  * 在鼠标右键位置弹出菜单。选项：
  *   - 移入回收站：调用后端软删除接口
  *   - 置顶笔记 / 取消置顶：根据 note.is_pinned 智能切换文案
+ *   - 移动笔记：弹出 MoveDialog 选择目标分类
  *
  * 由父组件控制 show / x / y / note，本组件只负责渲染和事件转发。
  */
@@ -16,7 +17,7 @@ import ZIcon from "@/components/DynamicIcon.vue";
 import type { Note } from "@/types/note";
 
 /** 右键菜单可触发的操作 */
-export type NoteContextAction = "trash" | "pin";
+export type NoteContextAction = "trash" | "pin" | "move";
 
 const props = defineProps<{
     /** 菜单是否显示 */
@@ -50,6 +51,11 @@ const isPinned = computed(() => props.note?.is_pinned === 1);
 /** 菜单选项配置 */
 const menuOptions = computed(() => [
     {
+        label: t("note.context.move_note"),
+        key: "move",
+        icon: () => h(ZIcon, { name: "ri:arrow-right-circle-line", size: 16 }),
+    },
+    {
         label: isPinned.value ? t("note.context.unpin") : t("note.context.pin"),
         key: "pin",
         icon: () => h(ZIcon, { name: "ri:pushpin-2-line", size: 16 }),
@@ -63,7 +69,7 @@ const menuOptions = computed(() => [
 
 /** NDropdown 选中某项时：转发给父组件处理，并关闭菜单 */
 const handleSelect = (key: string) => {
-    if (props.note && (key === "trash" || key === "pin")) {
+    if (props.note && (key === "trash" || key === "pin" || key === "move")) {
         emit("select", key as NoteContextAction, props.note);
     }
     emit("update:show", false);
