@@ -5,9 +5,12 @@
  * - parent_id 为 null 时表示顶层笔记本
  * - parent_id 不为 null 时表示子分类
  * - 笔记（Note）可以关联到任意层级的分类节点
+ *
+ * 后端 notebook/list 接口直接返回树形结构（NotebookNode[]），
+ * 前端无需自行组装，children 为必填字段。
  */
 
-/** 后端返回的扁平笔记本节点 */
+/** 扁平笔记本节点（后端单节点返回时使用，如 create/update 结果） */
 export interface Notebook {
     id: number;
     user_id: number;
@@ -19,7 +22,7 @@ export interface Notebook {
     updated_at: number | string;
 }
 
-/** 前端组装后的树形节点（在 Notebook 基础上加 children） */
+/** 树形笔记本节点（在 Notebook 基础上加 children，递归嵌套） */
 export interface NotebookNode extends Notebook {
     children: NotebookNode[];
     /** 节点在树中的深度（用于样式缩进），运行时计算 */

@@ -130,10 +130,7 @@ const startResize = (col: 1 | 2, e: MouseEvent) => {
 
 /** 当前选中笔记本的子分类树（用于 CategoryTree） */
 const currentCategoryTree = computed<NotebookNode[]>(() => {
-    if (noteStore.activeNotebookId === null) return [];
-    const top = noteStore.categoryTree.find((nb) => nb.id === noteStore.activeNotebookId);
-    if (!top) return [];
-    return top.children;
+    return noteStore.activeNotebook?.children ?? [];
 });
 
 /** 当前激活的笔记所在分类名（用于元信息条） */
@@ -389,7 +386,7 @@ const handleSaveTitle = async () => {
       <!-- 笔记本下拉 + 新建按钮 -->
       <div class="border-b border-slate-700/60 px-2 py-3">
         <NotebookSwitcher
-          :notebooks="noteStore.topNotebooks"
+          :notebooks="noteStore.notebookTree"
           :model-value="noteStore.activeNotebookId"
           @update:model-value="handleSwitchNotebook"
           @create="handleOpenCreateNotebook"

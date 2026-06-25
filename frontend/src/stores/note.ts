@@ -2,10 +2,11 @@
  * 笔记工作台 Pinia Store
  *
  * 设计要点：
- * 1. 后端只提供平铺数据（notebook/list），前端在内存中组装成树形结构
+ * 1. 后端 notebook/list 直接返回树形结构（NotebookNode[]），前端单一数据源 notebookTree
  * 2. 笔记按 notebook_id 维度缓存（notesByCategory），避免重复请求
  * 3. 聚合笔记（aggregatedNotes）缓存"某节点下所有笔记 id 集合"，切换分类时秒出
  * 4. 当前选中的笔记本/分类/笔记用 ref 跟踪，所有组件通过 store 联动
+ * 5. create/update/sort 通过不可变递归更新 notebookTree，保持响应式
  */
 import { defineStore } from "pinia";
 import * as notebookApi from "@/api/notebook";
@@ -42,24 +43,93 @@ const writeSessionId = (key: string, val: number | null): void => {
     }
 };
 
+// ==================== 树操作工具函数（纯函数，不可变更新） ====================
+
 /**
- * 把扁平数据组装成树形结构
- * 独立函数，方便在 getter 和 action 中复用
+ * 在树中递归查找指定 id 的节点
+ * @returns 匹配节点，未找到返回 null
  */
-const buildNodeTree = (allNotebooks: Notebook[], notebook: Notebook): NotebookNode => {
-    const children = allNotebooks
-        .filter((nb) => nb.parent_id === notebook.id)
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .map((child) => buildNodeTree(allNotebooks, child));
-    return { ...notebook, children };
+const findNodeById = (tree: NotebookNode[], id: number): NotebookNode | null => {
+    for (const node of tree) {
+        if (node.id === id) return node;
+        if (node.children.length > 0) {
+            const found = findNodeById(node.children, id);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+/**
+ * 将新节点插入树中（不可变，返回新树）
+ * - parent_id 为 null：插入顶层，按 sort_order 重新排序
+ * - parent_id 不为 null：递归找到父节点，插入其 children 并重新排序
+ */
+const insertNodeIntoTree = (tree: NotebookNode[], newNode: NotebookNode): NotebookNode[] => {
+    if (newNode.parent_id === null) {
+        return [...tree, newNode].sort((a, b) => a.sort_order - b.sort_order);
+    }
+    return tree.map((node) => {
+        if (node.id === newNode.parent_id) {
+            return {
+                ...node,
+                children: [...node.children, newNode].sort((a, b) => a.sort_order - b.sort_order),
+            };
+        }
+        if (node.children.length > 0) {
+            return { ...node, children: insertNodeIntoTree(node.children, newNode) };
+        }
+        return node;
+    });
+};
+
+/**
+ * 递归更新树中指定 id 的节点数据（不可变，返回新树）
+ * 用 updates 覆盖节点字段，保留原有 children 结构
+ */
+const updateNodeInTree = (
+    tree: NotebookNode[],
+    id: number,
+    updates: Notebook,
+): NotebookNode[] => {
+    return tree.map((node) => {
+        if (node.id === id) {
+            // 展开 updates 覆盖可变字段，显式保留 children
+            return { ...node, ...updates, children: node.children };
+        }
+        if (node.children.length > 0) {
+            return { ...node, children: updateNodeInTree(node.children, id, updates) };
+        }
+        return node;
+    });
+};
+
+/**
+ * 批量更新树中节点的 sort_order 并对每层重新排序（不可变，返回新树）
+ * @param sortMap id → sort_order 映射
+ */
+const updateSortOrderInTree = (
+    tree: NotebookNode[],
+    sortMap: Map<number, number>,
+): NotebookNode[] => {
+    return tree
+        .map((node) => {
+            const newSort = sortMap.get(node.id);
+            const updated = newSort !== undefined
+                ? { ...node, sort_order: newSort }
+                : node;
+            if (updated.children.length > 0) {
+                return { ...updated, children: updateSortOrderInTree(updated.children, sortMap) };
+            }
+            return updated;
+        })
+        .sort((a, b) => a.sort_order - b.sort_order);
 };
 
 export const useNoteStore = defineStore("note", {
     state: () => ({
-        /** 后端拉回来的扁平数据，全量缓存 */
-        allNotebooks: [] as Notebook[],
-        /** 顶层笔记本（parent_id === null），方便下拉框直接使用 */
-        topNotebooks: [] as Notebook[],
+        /** 笔记本树（后端返回的树形结构，顶层节点数组，子节点嵌在 children 里） */
+        notebookTree: [] as NotebookNode[],
         /** 已加载过笔记的分类 id 集合（用于避免重复请求） */
         loadedCategoryIds: new Set<number>(),
         /** 分类 id → 该分类下的笔记列表 */
@@ -80,27 +150,19 @@ export const useNoteStore = defineStore("note", {
 
     getters: {
         /**
-         * 完整的分类树（仅顶层节点，子节点嵌在 children 里）
-         * 适用于第一栏分类树渲染
+         * 当前选中的笔记本节点（顶层笔记本，直接在 notebookTree 顶层查找）
          */
-        categoryTree(state): NotebookNode[] {
-            return state.topNotebooks.map((top) => buildNodeTree(state.allNotebooks, top));
-        },
-
-        /**
-         * 当前选中的笔记本节点
-         */
-        activeNotebook(state): Notebook | null {
+        activeNotebook(state): NotebookNode | null {
             if (state.activeNotebookId === null) return null;
-            return state.allNotebooks.find((n) => n.id === state.activeNotebookId) ?? null;
+            return state.notebookTree.find((n) => n.id === state.activeNotebookId) ?? null;
         },
 
         /**
-         * 当前选中的分类节点
+         * 当前选中的分类节点（可在任意层级，递归查找）
          */
-        activeCategory(state): Notebook | null {
+        activeCategory(state): NotebookNode | null {
             if (state.activeCategoryId === null) return null;
-            return state.allNotebooks.find((n) => n.id === state.activeCategoryId) ?? null;
+            return findNodeById(state.notebookTree, state.activeCategoryId);
         },
 
         /**
@@ -137,25 +199,22 @@ export const useNoteStore = defineStore("note", {
     actions: {
         /**
          * 加载笔记本树（首次进入工作台时调用）
-         * 一次性拉全量数据，前端组装
+         * 后端直接返回树形结构，无需前端组装
          * 如果 sessionStorage 中保存了上次选中的分类和笔记，一并恢复
          */
         async loadNotebookTree() {
             this.loading.tree = true;
             try {
-                const list = await notebookApi.fetchNotebookList();
-                this.allNotebooks = list;
-                this.topNotebooks = list
-                    .filter((nb) => nb.parent_id === null)
-                    .sort((a, b) => a.sort_order - b.sort_order);
+                const tree = await notebookApi.fetchNotebookList();
+                this.notebookTree = tree;
 
                 // 默认选中第一个顶层笔记本（仅在 sessionStorage 无缓存时）
-                if (this.activeNotebookId === null && this.topNotebooks.length > 0) {
-                    this.activeNotebookId = this.topNotebooks[0].id;
+                if (this.activeNotebookId === null && tree.length > 0) {
+                    this.activeNotebookId = tree[0].id;
                     writeSessionId(SESSION_KEYS.notebook, this.activeNotebookId);
                 } else if (this.activeNotebookId !== null) {
                     // 校验恢复的 notebookId 是否有效，无效则清除
-                    const valid = this.allNotebooks.some((nb) => nb.id === this.activeNotebookId);
+                    const valid = !!findNodeById(tree, this.activeNotebookId);
                     if (!valid) {
                         this.activeNotebookId = null;
                         this.activeCategoryId = null;
@@ -172,7 +231,7 @@ export const useNoteStore = defineStore("note", {
                     // 先清空笔记选中，保证后续恢复时（null→id）触发 watch 更新草稿
                     this.activeNoteId = null;
                     // 校验恢复的 categoryId 是否有效
-                    const catValid = this.allNotebooks.some((nb) => nb.id === this.activeCategoryId);
+                    const catValid = !!findNodeById(tree, this.activeCategoryId);
                     if (!catValid) {
                         this.activeCategoryId = null;
                         writeSessionId(SESSION_KEYS.category, null);
@@ -243,20 +302,16 @@ export const useNoteStore = defineStore("note", {
 
         /**
          * 创建笔记本（顶层）或子分类
+         * 后端返回扁平 Notebook，前端补 children 后插入树中合适位置
          */
         async createNotebook(payload: CreateNotebookPayload) {
             this.loading.save = true;
             try {
                 const result = await notebookApi.createNotebook(payload);
                 if (result) {
-                    // 局部更新：插入新节点到 allNotebooks
-                    this.allNotebooks = [...this.allNotebooks, result];
-                    // 若是顶层笔记本，追加到 topNotebooks
-                    if (result.parent_id === null) {
-                        this.topNotebooks = [...this.topNotebooks, result].sort(
-                            (a, b) => a.sort_order - b.sort_order,
-                        );
-                    }
+                    // 后端返回扁平节点，补 children 转为树节点
+                    const newNode: NotebookNode = { ...result, children: [] };
+                    this.notebookTree = insertNodeIntoTree(this.notebookTree, newNode);
                 }
                 return result;
             } finally {
@@ -266,17 +321,14 @@ export const useNoteStore = defineStore("note", {
 
         /**
          * 更新笔记本/分类
-         * 更新成功后同步更新本地缓存
+         * 更新成功后递归更新树中对应节点（保留 children 结构）
          */
         async updateNotebook(id: number, payload: { title?: string; description?: string }) {
             this.loading.save = true;
             try {
                 const result = await notebookApi.updateNotebook(id, payload);
                 if (result) {
-                    this.allNotebooks = this.allNotebooks.map((nb) => (nb.id === id ? result : nb));
-                    if (result.parent_id === null) {
-                        this.topNotebooks = this.topNotebooks.map((nb) => (nb.id === id ? result : nb));
-                    }
+                    this.notebookTree = updateNodeInTree(this.notebookTree, id, result);
                 }
                 return result;
             } finally {
@@ -287,8 +339,7 @@ export const useNoteStore = defineStore("note", {
         /**
          * 批量排序分类（同级内拖动排序）
          * 前端传全量 items，后端事务更新后返回该父节点下排序后的子分类列表
-         * 用返回数据覆盖 allNotebooks 中对应记录的 sort_order
-         * categoryTree getter 会自动重算
+         * 用返回数据递归更新树中对应节点的 sort_order，并对各层重新排序
          * @param items 分类 id 及对应排序值
          */
         async sortNotebooks(items: SortNotebookItem[]) {
@@ -296,11 +347,9 @@ export const useNoteStore = defineStore("note", {
             try {
                 const result = await notebookApi.sortNotebooks(items);
                 if (result) {
-                    // 用返回的排序后数据更新 allNotebooks 中对应记录
-                    const idToUpdate = new Map(result.map((n) => [n.id, n]));
-                    this.allNotebooks = this.allNotebooks.map((nb) =>
-                        idToUpdate.get(nb.id) ?? nb,
-                    );
+                    // 构建 id → sort_order 映射，递归更新并重新排序
+                    const sortMap = new Map(result.map((n) => [n.id, n.sort_order]));
+                    this.notebookTree = updateSortOrderInTree(this.notebookTree, sortMap);
                 }
                 return result;
             } finally {

@@ -3,6 +3,32 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 
+/** 扁平笔记本节点类型（Drizzle 推断） */
+type NotebookFlat = typeof schema.notebooks.$inferSelect;
+
+/** 树形笔记本节点（在扁平节点基础上加 children，递归嵌套） */
+type NotebookTreeNode = NotebookFlat & {
+    children: NotebookTreeNode[];
+};
+
+/**
+ * 把扁平笔记本列表组装成树形结构
+ * - 顶层为 parent_id 为 null 的节点
+ * - 递归挂 children，依赖入参已按 sort_order 排序的特性（filter 保持相对顺序）
+ * @param flatList 已按 sort_order 升序排序的扁平列表
+ */
+const buildNotebookTree = (flatList: NotebookFlat[]): NotebookTreeNode[] => {
+    const buildNode = (node: NotebookFlat): NotebookTreeNode => {
+        const children = flatList
+            .filter((nb) => nb.parent_id === node.id)
+            .map(buildNode);
+        return { ...node, children };
+    };
+    return flatList
+        .filter((nb) => nb.parent_id === null)
+        .map(buildNode);
+};
+
 /**
  * 校验节点是否属于当前用户
  */
@@ -38,7 +64,9 @@ const wouldCreateCycle = async (nodeId: number, newParentId: number) => {
 };
 
 /**
- * 获取用户的笔记本列表（平铺，按 sort_order 排序）
+ * 获取用户的笔记本列表（树形结构）
+ * 一次 SQL 查全量扁平数据（按 sort_order 升序），后端递归组装成树返回
+ * 顶层节点为 parent_id 为 null 的节点，每个节点含 children 数组（递归嵌套）
  */
 export const listNotebooks = async (c: Context) => {
     const uid = Number(c.get("uid"));
@@ -50,10 +78,13 @@ export const listNotebooks = async (c: Context) => {
         .orderBy(schema.notebooks.sort_order)
         .all();
 
+    // 后端组装树形结构，避免前端自行递归
+    const tree = buildNotebookTree(notebooks);
+
     return c.json({
         code: 200,
         msg: "notebook.list.success",
-        data: notebooks,
+        data: tree,
     });
 };
 

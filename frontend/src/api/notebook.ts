@@ -5,7 +5,7 @@
  * 所有方法在 token 失效时会由 axios 拦截器统一处理（业务侧只关心 code === 200）。
  */
 import req from "@/utils/req";
-import type { CreateNotebookPayload, Notebook, SortNotebookItem } from "@/types/note";
+import type { CreateNotebookPayload, Notebook, NotebookNode, SortNotebookItem } from "@/types/note";
 
 /** 统一接口返回结构 */
 interface ApiResult<T> {
@@ -15,11 +15,12 @@ interface ApiResult<T> {
 }
 
 /**
- * 获取当前用户的所有笔记本（平铺结构）
- * 后端按 sort_order 升序返回
+ * 获取当前用户的笔记本树（树形结构）
+ * 后端一次 SQL 查全量并递归组装，按 sort_order 升序返回
+ * 返回顶层节点数组，每个节点含 children（递归嵌套）
  */
-export const fetchNotebookList = async (): Promise<Notebook[]> => {
-    const res = await req.get<ApiResult<Notebook[]>>("/api/user/notebook/list");
+export const fetchNotebookList = async (): Promise<NotebookNode[]> => {
+    const res = await req.get<ApiResult<NotebookNode[]>>("/api/user/notebook/list");
     if (res.data?.code === 200) {
         return res.data.data ?? [];
     }
