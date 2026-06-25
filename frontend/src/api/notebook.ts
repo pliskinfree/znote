@@ -80,3 +80,20 @@ export const sortNotebooks = async (items: SortNotebookItem[]): Promise<Notebook
     }
     return null;
 };
+
+/**
+ * 删除笔记本/分类列表（硬删除），同时软删除其下所有笔记
+ * @param ids 待删除的分类 ID 列表
+ * @returns 成功返回删除统计，失败返回 null
+ */
+export const deleteNotebooks = async (
+    ids: number[],
+): Promise<{ deleted_notebooks: number; deleted_notes: number } | null> => {
+    const res = await req.post<
+        ApiResult<{ deleted_notebooks: number; deleted_notes: number }>
+    >("/api/user/notebook/delete", { ids });
+    if (res.data?.code === 200) {
+        return res.data.data;
+    }
+    return null;
+};

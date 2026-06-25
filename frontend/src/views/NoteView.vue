@@ -23,6 +23,7 @@ import NoteMetaBar from "@/components/note/NoteMetaBar.vue";
 import CreateNotebookDialog from "@/components/note/dialogs/CreateNotebookDialog.vue";
 import ImportDialog from "@/components/note/dialogs/ImportDialog.vue";
 import MoveDialog from "@/components/note/dialogs/MoveDialog.vue";
+import DeleteNotebookDialog from "@/components/note/dialogs/DeleteNotebookDialog.vue";
 import CategoryContextMenu from "@/components/note/CategoryContextMenu.vue";
 import { useNoteStore } from "@/stores/note";
 import { useUserStore } from "@/stores/user";
@@ -65,6 +66,11 @@ const showRenameDialog = ref(false);
 const renameValue = ref("");
 /** 重命名目标节点 */
 const renameTarget = ref<NotebookNode | null>(null);
+
+/** 删除分类 Dialog 显隐 */
+const showDeleteDialog = ref(false);
+/** 删除目标节点 */
+const deleteTarget = ref<NotebookNode | null>(null);
 
 // ==================== 移动弹窗 ====================
 
@@ -290,6 +296,9 @@ const handleCategoryMenuSelect = (action: CategoryContextAction, node: NotebookN
         moveExcludeIds.value = collectDescendantIds(node.id, noteStore.notebookTree);
         moveCurrentCategoryId.value = node.id;
         showMoveDialog.value = true;
+    } else if (action === "delete") {
+        deleteTarget.value = node;
+        showDeleteDialog.value = true;
     }
 };
 
@@ -301,6 +310,16 @@ const handleConfirmRename = async () => {
         message.success(t("note.category.rename.success"));
     }
     showRenameDialog.value = false;
+};
+
+/** 确认删除分类 */
+const handleConfirmDelete = async () => {
+    if (!deleteTarget.value) return;
+    const result = await noteStore.deleteNotebooks([deleteTarget.value.id]);
+    if (result) {
+        message.success(t("note.category.delete.success"));
+    }
+    showDeleteDialog.value = false;
 };
 
 /** 确认移动 */
@@ -593,6 +612,13 @@ const handleSaveTitle = async () => {
         @keydown.enter="handleConfirmRename"
       />
     </NModal>
+
+    <!-- ==================== 删除分类 Dialog ==================== -->
+    <DeleteNotebookDialog
+      v-model:show="showDeleteDialog"
+      :node="deleteTarget"
+      @confirm="handleConfirmDelete"
+    />
 
     <!-- ==================== 移动弹窗 ==================== -->
     <MoveDialog

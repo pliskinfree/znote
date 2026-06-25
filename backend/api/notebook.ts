@@ -1,5 +1,5 @@
 import { Context } from "hono";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 
@@ -366,5 +366,131 @@ export const sortNotebooks = async (c: Context) => {
         code: 200,
         msg: "notebook.sort.success",
         data: notebooks,
+    });
+};
+
+/**
+ * 递归收集某个节点的所有子孙分类 ID（BFS，调用前确保所有节点属于同一用户）
+ * @param rootIds 待删除的根分类 ID 集合
+ * @returns 包含 rootIds 自身及其所有子孙节点 ID 的集合
+ */
+const collectDescendantIds = async (rootIds: number[]): Promise<Set<number>> => {
+    const allIds = new Set(rootIds);
+    let currentIds = [...rootIds];
+
+    // 逐层向下查找子节点
+    while (currentIds.length > 0) {
+        const children = await db
+            .select({ id: schema.notebooks.id })
+            .from(schema.notebooks)
+            .where(inArray(schema.notebooks.parent_id, currentIds))
+            .all();
+
+        currentIds = [];
+        for (const child of children) {
+            if (!allIds.has(child.id)) {
+                allIds.add(child.id);
+                currentIds.push(child.id);
+            }
+        }
+    }
+
+    return allIds;
+};
+
+/**
+ * 删除笔记本/分类列表（硬删除），同时软删除其下所有笔记
+ * 传入分类 ID 列表，后端递归查找所有子分类，事务内完成删除
+ */
+export const deleteNotebooks = async (c: Context) => {
+    const uid = Number(c.get("uid"));
+    const payload = await c.req.json();
+
+    const { ids } = payload || {};
+
+    // 校验 ids 非空数组
+    if (!Array.isArray(ids) || ids.length === 0) {
+        return c.json({
+            code: -1000,
+            msg: "notebook.delete.ids_required",
+            data: null,
+        });
+    }
+
+    // 校验每个 id 类型合法
+    for (const id of ids) {
+        if (typeof id !== "number" || !Number.isFinite(id) || id <= 0) {
+            return c.json({
+                code: -1000,
+                msg: "notebook.delete.id_invalid",
+                data: null,
+            });
+        }
+    }
+
+    // 批量校验所有 id 属于当前用户
+    const ownedRows = await db
+        .select({ id: schema.notebooks.id })
+        .from(schema.notebooks)
+        .where(and(
+            inArray(schema.notebooks.id, ids),
+            eq(schema.notebooks.user_id, uid),
+        ))
+        .all();
+
+    if (ownedRows.length !== ids.length) {
+        return c.json({
+            code: -1000,
+            msg: "notebook.delete.not_found",
+            data: null,
+        });
+    }
+
+    // 递归收集所有子孙分类 ID（包含传入的根 ID）
+    const allNotebookIds = await collectDescendantIds(ids);
+    const idList = [...allNotebookIds];
+
+    let deletedNotebooks = 0;
+    let deletedNotes = 0;
+
+    await db.transaction(async (tx) => {
+        // 1. 软删除这些分类下所有笔记
+        const now = new Date();
+        const notesResult = await tx
+            .update(schema.notes)
+            .set({
+                is_deleted: 1,
+                deleted_at: now,
+                updated_at: now,
+            })
+            .where(and(
+                inArray(schema.notes.notebook_id, idList),
+                eq(schema.notes.user_id, uid),
+            ))
+            .returning({ id: schema.notes.id })
+            .all();
+
+        deletedNotes = notesResult.length;
+
+        // 2. 硬删除所有分类（含子孙）
+        const notebookResult = await tx
+            .delete(schema.notebooks)
+            .where(and(
+                inArray(schema.notebooks.id, idList),
+                eq(schema.notebooks.user_id, uid),
+            ))
+            .returning({ id: schema.notebooks.id })
+            .all();
+
+        deletedNotebooks = notebookResult.length;
+    });
+
+    return c.json({
+        code: 200,
+        msg: "notebook.delete.success",
+        data: {
+            deleted_notebooks: deletedNotebooks,
+            deleted_notes: deletedNotes,
+        },
     });
 };

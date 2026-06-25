@@ -127,6 +127,54 @@ const updateSortOrderInTree = (
         .sort((a, b) => a.sort_order - b.sort_order);
 };
 
+/**
+ * 从树中收集指定 id 集合的所有子孙节点 id（递归）
+ * @returns 包含入参 rootIds 及所有子孙节点的完整 ID 集合
+ */
+const collectDescendantIdsFromTree = (
+    tree: NotebookNode[],
+    rootIds: Set<number>,
+): Set<number> => {
+    const result = new Set<number>();
+    const collect = (node: NotebookNode) => {
+        result.add(node.id);
+        for (const child of node.children) {
+            collect(child);
+        }
+    };
+    const traverse = (nodes: NotebookNode[]) => {
+        for (const node of nodes) {
+            if (rootIds.has(node.id)) {
+                collect(node);
+            } else if (node.children.length > 0) {
+                traverse(node.children);
+            }
+        }
+    };
+    traverse(tree);
+    return result;
+};
+
+/**
+ * 从树中递归移除指定 id 集合的节点（不可变，返回新树）
+ * - 若节点 id 在 ids 中，直接移除该节点及其子树
+ * - 否则递归检查其 children，过滤掉匹配的子节点
+ * @returns 过滤后的新树
+ */
+const removeNodeFromTree = (
+    tree: NotebookNode[],
+    ids: Set<number>,
+): NotebookNode[] => {
+    return tree
+        .filter((node) => !ids.has(node.id))
+        .map((node) => {
+            if (node.children.length > 0) {
+                return { ...node, children: removeNodeFromTree(node.children, ids) };
+            }
+            return node;
+        });
+};
+
 export const useNoteStore = defineStore("note", {
     state: () => ({
         /** 笔记本树（后端返回的树形结构，顶层节点数组，子节点嵌在 children 里） */
@@ -455,6 +503,42 @@ export const useNoteStore = defineStore("note", {
                     // 构建 id → sort_order 映射，递归更新并重新排序
                     const sortMap = new Map(result.map((n) => [n.id, n.sort_order]));
                     this.notebookTree = updateSortOrderInTree(this.notebookTree, sortMap);
+                }
+                return result;
+            } finally {
+                this.loading.save = false;
+            }
+        },
+
+        /**
+         * 删除笔记本/分类列表（硬删除），同时软删除其下所有笔记
+         * 删除成功后从树中移除对应节点，清理相关缓存和选中状态
+         * @param ids 待删除的分类 ID 列表
+         */
+        async deleteNotebooks(ids: number[]) {
+            this.loading.save = true;
+            try {
+                // 从当前树中收集所有待删分类及其子孙节点的完整 ID 集合
+                const allIds = collectDescendantIdsFromTree(this.notebookTree, new Set(ids));
+
+                const result = await notebookApi.deleteNotebooks(ids);
+                if (result) {
+                    // 用完整 ID 集合从树中移除所有受影响节点
+                    this.notebookTree = removeNodeFromTree(this.notebookTree, allIds);
+
+                    // 若删除的节点包含当前选中的分类/笔记，清空选中
+                    if (this.activeCategoryId !== null && allIds.has(this.activeCategoryId)) {
+                        this.activeCategoryId = null;
+                        this.activeNoteId = null;
+                        writeSessionId(SESSION_KEYS.category, null);
+                        writeSessionId(SESSION_KEYS.note, null);
+                    }
+
+                    // 清理所有被删分类的笔记缓存
+                    for (const cid of allIds) {
+                        delete this.notesByCategory[cid];
+                        this.loadedCategoryIds.delete(cid);
+                    }
                 }
                 return result;
             } finally {

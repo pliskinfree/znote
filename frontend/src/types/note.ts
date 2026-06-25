@@ -76,3 +76,9 @@ export interface SortNotebookItem {
     /** 排序值 */
     sort_order: number;
 }
+
+/** 删除分类 API 返回数据 */
+export interface DeleteNotebookResult {
+    deleted_notebooks: number;
+    deleted_notes: number;
+}
