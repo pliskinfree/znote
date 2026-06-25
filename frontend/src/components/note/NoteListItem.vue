@@ -95,8 +95,8 @@ const isPinned = computed(() => props.note.is_pinned === 1);
         </h3>
       </div>
 
-      <!-- 摘要：始终占一行高度，保证卡片高度一致 -->
-      <p class="mt-1 line-clamp-1 text-xs text-slate-500">
+      <!-- 摘要：PC 端显示，移动端隐藏以节约空间 -->
+      <p v-if="!isMobile" class="mt-1 line-clamp-1 text-xs text-slate-500">
         {{ summary || "\u00A0" }}
       </p>
 
