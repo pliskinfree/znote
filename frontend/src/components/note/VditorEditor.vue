@@ -72,6 +72,48 @@ onMounted(() => {
                 toc: false, // 关闭目录生成，减少每次渲染开销
             },
         },
+        upload: {
+            /** 上传 API 地址 */
+            url: (import.meta.env.VITE_API_URL || "") + "/api/user/file/upload",
+            /** 单文件上限 10MB */
+            max: 10 * 1024 * 1024,
+            /** 允许的图片类型 */
+            accept: "image/jpeg,image/png,image/gif,image/webp,image/svg+xml,image/bmp",
+            /** 允许多文件上传 */
+            multiple: true,
+            /** 上传字段名（与后端 file[] 对应） */
+            fieldName: "file[]",
+            /** 每次上传前动态设置 Bearer Token 认证头 */
+            setHeaders() {
+                const token = localStorage.getItem("token");
+                return token ? { Authorization: `Bearer ${token}` } : {};
+            },
+            /** 将响应格式转换为 Vditor 内置数据结构 */
+            format(_files: File[], responseText: string): string {
+                const res = JSON.parse(responseText);
+                const succMap: Record<string, string> = {};
+                const errFiles: string[] = [];
+                if (res.code === 200 && Array.isArray(res.data)) {
+                    const baseUrl = import.meta.env.VITE_API_URL || "";
+                    for (const item of res.data) {
+                        if (item.url && item.original_name) {
+                            succMap[item.original_name] = baseUrl + item.url;
+                        } else {
+                            errFiles.push(item.original_name || "unknown");
+                        }
+                    }
+                } else {
+                    for (const file of _files) {
+                        errFiles.push(file.name);
+                    }
+                }
+                return JSON.stringify({
+                    code: 0,
+                    msg: "",
+                    data: { errFiles, succMap },
+                });
+            },
+        },
         input(value) {
             if (!isInternalUpdate) {
                 emit("update:modelValue", value);
