@@ -382,6 +382,7 @@ export const getPublicDoc = async (c: Context) => {
             is_pinned: schema.notes.is_pinned,
             sort_order: schema.notes.sort_order,
             created_at: schema.notes.created_at,
+            updated_at: schema.notes.updated_at,
         })
         .from(schema.notes)
         .where(and(
@@ -407,7 +408,7 @@ export const getPublicDoc = async (c: Context) => {
     for (const note of notes) {
         const parent = nodeMap.get(note.notebook_id);
         if (parent) {
-            parent.notes.push({ id: note.id, title: note.title, type: "note" });
+            parent.notes.push({ id: note.id, title: note.title, type: "note", updated_at: note.updated_at });
         }
     }
 
@@ -419,9 +420,9 @@ export const getPublicDoc = async (c: Context) => {
         }
     }
 
-    // 根节点：doc.notebook_id 对应的节点
+    // 根节点是文档本身，不需要展示，返回其下一级子分类作为顶层树
     const rootNode = nodeMap.get(doc.notebook_id);
-    const tree = rootNode ? [rootNode] : [];
+    const tree = rootNode ? rootNode.children : [];
 
     return c.json({
         code: 200,

@@ -38,16 +38,33 @@ const router = createRouter({
             component: () => import("@/views/LoginView.vue"),
         },
         {
-            path: "/user/register",
-            name: "register",
-            component: () => import("@/views/RegisterView.vue"),
+            path: "/user/login",
+            name: "login",
+            component: () => import("@/views/LoginView.vue"),
+        },
+        {
+            path: "/doc/:slug",
+            name: "doc",
+            component: () => import("@/views/DocView.vue"),
+            children: [
+                {
+                    path: "",
+                    name: "docHome",
+                    component: () => import("@/components/doc/DocHome.vue"),
+                },
+                {
+                    path: "note/:noteId",
+                    name: "docNote",
+                    component: () => import("@/components/doc/DocNote.vue"),
+                },
+            ],
         },
     ],
 });
 
 router.beforeEach((to) => {
     const publicPaths = ["/", "/user/init", "/user/login", "/user/register"];
-    if (publicPaths.includes(to.path)) {
+    if (publicPaths.includes(to.path) || to.path.startsWith("/doc/")) {
         return true;
     }
 
