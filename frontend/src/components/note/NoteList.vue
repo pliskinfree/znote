@@ -228,24 +228,26 @@ const handleMoveCancel = () => {
 <template>
   <div class="flex h-full flex-col">
     <!-- 顶部工具栏：搜索 + 新建（回收站模式隐藏） -->
-    <div v-if="!trashMode" class="flex shrink-0 items-center gap-2 border-b border-slate-200/60 bg-white px-3 py-2.5">
+    <div v-if="!trashMode" class="flex shrink-0 items-center gap-2 border-b border-slate-200/60 bg-white px-3 py-3 md:py-2.5">
       <NInput
         v-model:value="keyword"
+        :size="props.isMobile ? 'large' : 'medium'"
         :placeholder="t('note.note.search.placeholder')"
         clearable
         @keydown.escape="handleKeydownEsc"
       >
         <template #prefix>
-          <ZIcon name="ri:search-line" :size="14" color="#94a3b8" />
+          <ZIcon name="ri:search-line" :size="props.isMobile ? 16 : 14" color="#94a3b8" />
         </template>
       </NInput>
       <NButton
         type="primary"
+        :size="props.isMobile ? 'large' : 'medium'"
         :disabled="disabledCreate || isSearchMode"
         @click="emit('create')"
       >
         <template #icon>
-          <ZIcon name="ri:add-line" :size="14" color="currentColor" />
+          <ZIcon name="ri:add-line" :size="props.isMobile ? 16 : 14" color="currentColor" />
         </template>
         <span class="hidden sm:inline">{{ t("note.note.create.button") }}</span>
       </NButton>
