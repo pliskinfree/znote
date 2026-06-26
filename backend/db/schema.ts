@@ -130,3 +130,26 @@ export const noteTags = sqliteTable("note_tags", {
     index("idx_note_tags_tag").on(table.tag_id),                                    // 按标签查笔记
     uniqueIndex("idx_note_tags_pair").on(table.note_id, table.tag_id),              // 防重复关联
 ]);
+
+// ==================== 文件管理 ====================
+
+/**
+ * 上传文件记录（图片等）
+ * file_id 为业务唯一标识（随机字符串），用于嵌入笔记内容和快速检索
+ * file_path 为相对于 data/files 的路径，URL 地址为 /files/{file_path}
+ */
+export const files = sqliteTable("files", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    file_id: text("file_id").notNull().unique(),                                    // 业务唯一标识，如 "aB3xK9mQ"
+    user_id: integer("user_id").notNull(),                                          // 所属用户
+    original_name: text("original_name").notNull(),                                 // 原始文件名
+    file_path: text("file_path").notNull(),                                         // 相对存储路径
+    file_size: integer("file_size").notNull(),                                      // 文件大小（字节）
+    mime_type: text("mime_type").notNull(),                                         // MIME 类型
+    width: integer("width"),                                                        // 图片宽度
+    height: integer("height"),                                                      // 图片高度
+    created_at: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()).notNull(),
+}, (table) => [
+    index("idx_files_user").on(table.user_id),
+    index("idx_files_file_id").on(table.file_id),
+]);

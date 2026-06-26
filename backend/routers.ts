@@ -22,6 +22,7 @@ import { listNotebooks, getTopLevelNotebooks, createNotebook, updateNotebook, so
 import { listNotes, createNote, updateNote, deleteNote, sortNotes, getNoteById, listTrashNotes } from "@/api/note";
 import { listNoteVersions, getNoteVersion } from "@/api/note_version";
 import { importZip } from "@/api/import";
+import { uploadFiles } from "@/api/file";
 import { searchNotes } from "@/api/search";
 import { verifyApiToken } from "@/middleware/auth";
 import type { AppVariables } from "@/types";
@@ -52,6 +53,13 @@ publicRouter.use(
         onFound: (_path, c) => {
             c.header("Cache-Control", "public, immutable, max-age=604800");
         },
+    }),
+);
+
+publicRouter.use(
+    "/files/*",
+    serveStatic({
+        root: "./data",
     }),
 );
 
@@ -94,6 +102,7 @@ userRouter.get("/note/detail", getNoteById);
 userRouter.get("/note/trash", listTrashNotes);
 
 userRouter.post("/import", importZip);
+userRouter.post("/file/upload", uploadFiles);
 
 adminRouter.get("/app_info", getAppInfo);
 adminRouter.get("/list_users", listUsers);
