@@ -24,6 +24,7 @@ import { listNoteVersions, getNoteVersion } from "@/api/note_version";
 import { importZip } from "@/api/import";
 import { uploadFiles } from "@/api/file";
 import { searchNotes } from "@/api/search";
+import { listDocs, createDoc, updateDoc, deleteDoc } from "@/api/doc";
 import { verifyApiToken } from "@/middleware/auth";
 import type { AppVariables } from "@/types";
 
@@ -113,3 +114,8 @@ userRouter.post("/file/upload", uploadFiles);
 adminRouter.get("/app_info", getAppInfo);
 adminRouter.get("/list_users", listUsers);
 adminRouter.post("/reset_user_password", resetUserPassword);
+
+adminRouter.get("/doc/list", listDocs);
+adminRouter.post("/doc/create", createDoc);
+adminRouter.post("/doc/update", updateDoc);
+adminRouter.post("/doc/delete", deleteDoc);
