@@ -108,6 +108,13 @@ watch(slug, () => {
 watch(() => route.fullPath, () => {
     sidebarOpen.value = false;
 });
+
+/** 离开笔记页时清空 TOC 标题列表，避免在首页/分类页残留旧数据导致右侧 TOC 仍渲染 */
+watch(activeNoteId, (newId) => {
+    if (newId === null) {
+        headings.value = [];
+    }
+});
 </script>
 
 <template>
@@ -180,8 +187,11 @@ watch(() => route.fullPath, () => {
         </div>
       </main>
 
-      <!-- 右侧 TOC：PC 固定 -->
-      <div class="hidden w-[200px] flex-shrink-0 xl:block">
+      <!-- 右侧 TOC：仅笔记页且 xl 屏显示 -->
+      <div
+        v-if="activeNoteId !== null"
+        class="hidden w-[200px] flex-shrink-0 xl:block"
+      >
         <DocToc />
       </div>
     </div>
