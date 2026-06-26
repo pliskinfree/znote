@@ -1,6 +1,6 @@
 import { Context } from "hono";
 import { join } from "node:path";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { getUserSettingValue } from "@/api/setting";
@@ -69,6 +69,15 @@ export const initUser = async (c: Context) => {
 export const register = async (c: Context) => {
     if (!getAllowRegister()) {
         return c.json({ code: -1000, msg: "register.not.allowed", data: null });
+    }
+
+    // 检查用户数量是否达到上限（最多5个用户）
+    const userCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(schema.users)
+        .get();
+    if (userCount && userCount.count >= 5) {
+        return c.json({ code: -1000, msg: "register.user.limit.reached", data: null });
     }
 
     let { username, email, password } = await c.req.json();

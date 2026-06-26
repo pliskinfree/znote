@@ -7,6 +7,7 @@ export default {
     "invalid.email": "邮箱不合法",
     "username.already.exists": "用户名已存在",
     "email.already.exists": "邮箱已存在",
+    "register.user.limit.reached": "用户数量已达上限，无法注册",
     "register.success": "注册成功",
     "init.success": "初始化成功",
     "invalid.username.or.password": "用户名或密码错误",

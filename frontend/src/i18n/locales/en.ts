@@ -7,6 +7,7 @@ export default {
     "invalid.email": "Invalid email",
     "username.already.exists": "Username already exists",
     "email.already.exists": "Email already exists",
+    "register.user.limit.reached": "User limit reached, registration disabled",
     "register.success": "Registered successfully",
     "init.success": "Initialization completed",
     "invalid.username.or.password": "Invalid username or password",

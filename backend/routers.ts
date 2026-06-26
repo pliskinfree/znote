@@ -60,6 +60,9 @@ publicRouter.use(
     "/files/*",
     serveStatic({
         root: "./data",
+        onFound: (_path, c) => {
+            c.header("Cache-Control", "public, immutable, max-age=604800");
+        },
     }),
 );
 
@@ -68,6 +71,8 @@ publicRouter.get("/dashboard", index);
 publicRouter.get("/dashboard/*", index);
 publicRouter.get("/user", index);
 publicRouter.get("/user/*", index);
+publicRouter.get("/app", index);
+publicRouter.get("/app/*", index);
 
 publicRouter.get("/api/system/status", getSystemStatus);
 publicRouter.post("/api/init_user", initUser);
