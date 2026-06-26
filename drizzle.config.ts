@@ -17,6 +17,7 @@ export default {
         "notes",
         "note_versions",
         "files",
+        "docs",
     ],
     dbCredentials: {
         url: `file:${dbPath}`,

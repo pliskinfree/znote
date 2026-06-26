@@ -126,3 +126,25 @@ export const files = sqliteTable("files", {
     index("idx_files_user").on(table.user_id),
     index("idx_files_file_id").on(table.file_id),
 ]);
+
+// ==================== 公开文档 ====================
+
+/**
+ * 公开文档配置表
+ * 管理员可将顶层笔记本（parent_id IS NULL）发布为公开文档站点
+ * 一个笔记本只能发布一次（notebook_id UNIQUE）
+ * slug 仅允许 [a-z0-9-]，作为公开访问路径 /doc/{slug}
+ */
+export const docs = sqliteTable("docs", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    notebook_id: integer("notebook_id").notNull().unique(),                        // 关联顶层笔记本，UNIQUE 保证一对一
+    slug: text("slug").notNull().unique(),                                         // URL 标识，仅允许 [a-z0-9-]
+    title: text("title").default("").notNull(),                                    // 公开站标题（若为空则使用笔记本原标题）
+    description: text("description").default("").notNull(),                        // 公开站描述
+    keywords: text("keywords").default("").notNull(),                              // SEO 关键词（可选，非必填）
+    status: text("status", { enum: ["active", "inactive"] }).default("active").notNull(), // active 可访问，inactive 停用
+    created_at: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()).notNull(),
+    updated_at: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()).notNull(),
+}, (table) => [
+    index("idx_docs_slug").on(table.slug),                                         // 按 slug 查询公开文档
+]);

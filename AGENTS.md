@@ -113,7 +113,8 @@ frontend/
 | `run.sh` | 统一启动脚本（dev/生产） |
 | `bun run dev` | 后端开发模式（热重载） |
 | `bun run build` | 构建前端 + 打包后端 |
-| `bun run db:migrate` | 执行数据库迁移 |
+
+> 无论什么情况下你都不应该自作主张去执行bunx drizzle-kit generate命令。
 
 ---
 
