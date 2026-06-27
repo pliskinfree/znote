@@ -55,7 +55,7 @@ const sections = computed(() => flattenTree(tree.value));
 
 /** 点击笔记跳转 */
 const goToNote = (noteId: number) => {
-    router.push(`/doc/${slug}/note/${noteId}`);
+    router.push(`/doc/${slug}/note-${noteId}`);
 };
 </script>
 

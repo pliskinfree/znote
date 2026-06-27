@@ -45,12 +45,12 @@ const toggleExpand = () => {
 
 /** 点击分类名称跳转到分类页面 */
 const goToNotebook = (id: number) => {
-    router.push(`/doc/${props.slug}/notebook/${id}`);
+    router.push(`/doc/${props.slug}/notebook-${id}`);
 };
 
 /** 点击笔记跳转 */
 const goToNote = (noteId: number) => {
-    router.push(`/doc/${props.slug}/note/${noteId}`);
+    router.push(`/doc/${props.slug}/note-${noteId}`);
 };
 
 /** 高亮匹配关键词 */

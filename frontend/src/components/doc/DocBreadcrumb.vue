@@ -73,7 +73,7 @@ const findNotePathForBreadcrumb = (nodes: DocNode[], noteId: number, path: DocNo
       <a
         v-if="crumb.id"
         class="cursor-pointer transition hover:text-blue-600"
-        @click="router.push(`/doc/${slug}/notebook/${crumb.id}`)"
+        @click="router.push(`/doc/${slug}/notebook-${crumb.id}`)"
       >{{ crumb.label }}</a>
       <span v-else>{{ crumb.label }}</span>
     </template>
