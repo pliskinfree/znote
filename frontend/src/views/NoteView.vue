@@ -28,6 +28,7 @@ import VersionHistoryDialog from "@/components/note/dialogs/VersionHistoryDialog
 import CategoryContextMenu from "@/components/note/CategoryContextMenu.vue";
 import { useNoteStore } from "@/stores/note";
 import { useUserStore } from "@/stores/user";
+import { useNoteSync } from "@/composables/useNoteSync";
 import { fetchNoteVersion } from "@/api/note";
 import { NModal, NInput, NAlert } from "naive-ui";
 import type { NotebookNode } from "@/types/note";
@@ -211,6 +212,17 @@ const draftContent = ref("");
 const isSaving = ref(false);
 /** 标题输入框 ref（用于自动聚焦） */
 const titleInputRef = ref<HTMLInputElement | null>(null);
+
+/** 编辑器是否有未保存修改——后台轮询据此判断是否跳过激活笔记刷新 */
+const hasUnsavedChanges = computed(() => {
+    if (noteStore.activeNoteId === null) return false;
+    const saved = noteStore.activeNote;
+    if (!saved) return false;
+    return draftTitle.value !== saved.title || draftContent.value !== saved.content;
+});
+
+/** 启动后台同步（标签页不可见时 30s 轮询，可见时停止） */
+useNoteSync(hasUnsavedChanges);
 
 // ==================== 侧边栏可调宽度 ====================
 

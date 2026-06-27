@@ -871,5 +871,98 @@ export const useNoteStore = defineStore("note", {
             this.trashMode = false;
             this.trashNotes = [];
         },
+
+        // ==================== 静默刷新（tab 后台轮询用） ====================
+
+        /**
+         * 静默刷新笔记本树（不触发 loading，不写 sessionStorage）
+         * 后台轮询用，刷新后校验当前选中的 notebook/category/note 是否仍有效
+         */
+        async silentRefreshTree() {
+            try {
+                const tree = await notebookApi.fetchNotebookList();
+                this.notebookTree = tree;
+
+                // 校验选中的顶层笔记本是否仍存在于新树中
+                if (this.activeNotebookId !== null) {
+                    const nbValid = !!findNodeById(tree, this.activeNotebookId);
+                    if (!nbValid) {
+                        this.activeNotebookId = null;
+                        this.activeCategoryId = null;
+                        this.activeNoteId = null;
+                        this.activeNoteData = null;
+                        // 不写 sessionStorage —— 仅静默清空内存状态
+                        return;
+                    }
+                } else if (tree.length > 0) {
+                    // 之前无选中，自动选第一个
+                    this.activeNotebookId = tree[0].id;
+                }
+
+                // 校验选中的分类是否仍有效
+                if (this.activeCategoryId !== null) {
+                    const catValid = !!findNodeById(tree, this.activeCategoryId);
+                    if (!catValid) {
+                        this.activeCategoryId = null;
+                        this.activeNoteId = null;
+                        this.activeNoteData = null;
+                        return;
+                    }
+                }
+
+                // 校验选中的笔记是否仍有效（只做浅层校验：当前分类缓存中有无该笔记）
+                if (this.activeNoteId !== null) {
+                    const noteInCache = this.noteMap.get(this.activeNoteId);
+                    if (!noteInCache && !this.activeNoteData) {
+                        this.activeNoteId = null;
+                        this.activeNoteData = null;
+                    }
+                }
+            } catch {
+                // 静默失败，不影响用户操作
+            }
+        },
+
+        /**
+         * 静默刷新当前分类的笔记列表（不触发 loading）
+         * 仅在已加载的分类上重新拉取，跳过未加载的分类
+         */
+        async silentRefreshCategoryNotes() {
+            if (this.activeCategoryId === null) return;
+            if (!this.loadedCategoryIds.has(this.activeCategoryId)) return;
+            try {
+                const notes = await noteApi.fetchNoteList(this.activeCategoryId);
+                this.notesByCategory = { ...this.notesByCategory, [this.activeCategoryId]: notes };
+            } catch {
+                // 静默失败
+            }
+        },
+
+        /**
+         * 静默刷新激活笔记的详细数据（不触发 loading）
+         * 同步更新 activeNoteData 和各分类缓存中的对应笔记
+         */
+        async silentRefreshActiveNote() {
+            if (this.activeNoteId === null) return;
+            try {
+                const note = await fetchNoteById(this.activeNoteId);
+                if (!note) return;
+                if (this.activeNoteId === note.id) {
+                    this.activeNoteData = note;
+                }
+                // 同步更新分类缓存
+                for (const cid of Object.keys(this.notesByCategory)) {
+                    const list = this.notesByCategory[Number(cid)];
+                    const idx = list.findIndex((n) => n.id === note.id);
+                    if (idx !== -1) {
+                        list[idx] = note;
+                        this.notesByCategory = { ...this.notesByCategory };
+                        break;
+                    }
+                }
+            } catch {
+                // 静默失败
+            }
+        },
     },
 });

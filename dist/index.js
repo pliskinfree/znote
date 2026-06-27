@@ -10239,7 +10239,8 @@ __export(exports_schema, {
   notes: () => notes,
   notebooks: () => notebooks,
   noteVersions: () => noteVersions,
-  files: () => files
+  files: () => files,
+  docs: () => docs
 });
 import { integer, sqliteTable, text, index } from "drizzle-orm/sqlite-core";
 var users = sqliteTable("users", {
@@ -10331,6 +10332,19 @@ var files = sqliteTable("files", {
   index("idx_files_user").on(table.user_id),
   index("idx_files_file_id").on(table.file_id)
 ]);
+var docs = sqliteTable("docs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  notebook_id: integer("notebook_id").notNull().unique(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").default("").notNull(),
+  description: text("description").default("").notNull(),
+  keywords: text("keywords").default("").notNull(),
+  status: text("status", { enum: ["active", "inactive"] }).default("active").notNull(),
+  created_at: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date).notNull(),
+  updated_at: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date).notNull()
+}, (table) => [
+  index("idx_docs_slug").on(table.slug)
+]);
 
 // backend/db/index.ts
 var dbFile = DB_FILE;
@@ -10399,7 +10413,7 @@ var getBearerToken = (c) => {
 
 // backend/api/info.ts
 var APP_VERSION = "0.1.0";
-var APP_DATE = "2026062605";
+var APP_DATE = "2026062702";
 var getAppInfo = async (c) => {
   const userCount = await db.select({ count: count() }).from(users);
   return c.json({
@@ -10534,6 +10548,9 @@ var vPassword = (password) => {
 };
 var vEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+var vSlug = (slug) => {
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) && slug.length >= 1 && slug.length <= 64;
 };
 
 // backend/api/user.ts
@@ -11687,19 +11704,293 @@ var searchNotes = async (c) => {
   });
 };
 
+// backend/api/doc.ts
+import { and as and6, asc as asc2, desc as desc4, eq as eq7, inArray as inArray3, isNull as isNull2, ne } from "drizzle-orm";
+var collectSubtreeIds = async (rootId) => {
+  const ids = new Set([rootId]);
+  let current = [rootId];
+  while (current.length > 0) {
+    const children = await db.select({ id: notebooks.id }).from(notebooks).where(inArray3(notebooks.parent_id, current)).all();
+    current = [];
+    for (const c of children) {
+      if (!ids.has(c.id)) {
+        ids.add(c.id);
+        current.push(c.id);
+      }
+    }
+  }
+  return ids;
+};
+var getAllTopLevelNotebooks = async (c) => {
+  const rows = await db.select({
+    id: notebooks.id,
+    title: notebooks.title,
+    description: notebooks.description,
+    user_id: notebooks.user_id,
+    username: users.username,
+    sort_order: notebooks.sort_order
+  }).from(notebooks).leftJoin(users, eq7(notebooks.user_id, users.id)).where(isNull2(notebooks.parent_id)).orderBy(asc2(notebooks.sort_order)).all();
+  return c.json({
+    code: 200,
+    msg: "doc.notebook.top.success",
+    data: rows
+  });
+};
+var listDocs = async (c) => {
+  const rows = await db.select({
+    id: docs.id,
+    notebook_id: docs.notebook_id,
+    slug: docs.slug,
+    title: docs.title,
+    description: docs.description,
+    keywords: docs.keywords,
+    status: docs.status,
+    created_at: docs.created_at,
+    updated_at: docs.updated_at,
+    notebook_title: notebooks.title,
+    notebook_description: notebooks.description
+  }).from(docs).leftJoin(notebooks, eq7(docs.notebook_id, notebooks.id)).orderBy(desc4(docs.id)).all();
+  return c.json({
+    code: 200,
+    msg: "doc.list.success",
+    data: rows
+  });
+};
+var createDoc = async (c) => {
+  const payload = await c.req.json();
+  const { notebook_id, slug, title, description, keywords, status } = payload || {};
+  if (!notebook_id || typeof notebook_id !== "number") {
+    return c.json({ code: -1000, msg: "doc.create.notebook_required", data: null });
+  }
+  const notebook = await db.select({ id: notebooks.id, parent_id: notebooks.parent_id }).from(notebooks).where(eq7(notebooks.id, notebook_id)).get();
+  if (!notebook) {
+    return c.json({ code: -1000, msg: "doc.create.notebook_not_found", data: null });
+  }
+  if (notebook.parent_id !== null) {
+    return c.json({ code: -1000, msg: "doc.create.notebook_not_top_level", data: null });
+  }
+  const existingDocByNotebook = await db.select({ id: docs.id }).from(docs).where(eq7(docs.notebook_id, notebook_id)).get();
+  if (existingDocByNotebook) {
+    return c.json({ code: -1000, msg: "doc.create.notebook_already_published", data: null });
+  }
+  if (!slug || typeof slug !== "string" || slug.trim().length === 0) {
+    return c.json({ code: -1000, msg: "doc.create.slug_required", data: null });
+  }
+  const trimmedSlug = slug.trim().toLowerCase();
+  if (!vSlug(trimmedSlug)) {
+    return c.json({ code: -1000, msg: "doc.create.slug_invalid", data: null });
+  }
+  const existingDocBySlug = await db.select({ id: docs.id }).from(docs).where(eq7(docs.slug, trimmedSlug)).get();
+  if (existingDocBySlug) {
+    return c.json({ code: -1000, msg: "doc.create.slug_exists", data: null });
+  }
+  if (status !== undefined && status !== "active" && status !== "inactive") {
+    return c.json({ code: -1000, msg: "doc.create.status_invalid", data: null });
+  }
+  const now = new Date;
+  const result = await db.insert(docs).values({
+    notebook_id,
+    slug: trimmedSlug,
+    title: title ?? "",
+    description: description ?? "",
+    keywords: keywords ?? "",
+    status: status ?? "active",
+    created_at: now,
+    updated_at: now
+  }).returning().get();
+  return c.json({
+    code: 200,
+    msg: "doc.create.success",
+    data: result
+  });
+};
+var updateDoc = async (c) => {
+  const payload = await c.req.json();
+  const { id, notebook_id, slug, title, description, keywords, status } = payload || {};
+  if (!id || typeof id !== "number") {
+    return c.json({ code: -1000, msg: "doc.update.id_required", data: null });
+  }
+  const existingDoc = await db.select().from(docs).where(eq7(docs.id, id)).get();
+  if (!existingDoc) {
+    return c.json({ code: -1000, msg: "doc.update.not_found", data: null });
+  }
+  if (notebook_id !== undefined) {
+    const notebook = await db.select({ id: notebooks.id, parent_id: notebooks.parent_id }).from(notebooks).where(eq7(notebooks.id, notebook_id)).get();
+    if (!notebook) {
+      return c.json({ code: -1000, msg: "doc.update.notebook_not_found", data: null });
+    }
+    if (notebook.parent_id !== null) {
+      return c.json({ code: -1000, msg: "doc.update.notebook_not_top_level", data: null });
+    }
+    const conflict = await db.select({ id: docs.id }).from(docs).where(and6(eq7(docs.notebook_id, notebook_id), ne(docs.id, id))).get();
+    if (conflict) {
+      return c.json({ code: -1000, msg: "doc.update.notebook_already_published", data: null });
+    }
+  }
+  let trimmedSlug;
+  if (slug !== undefined) {
+    if (typeof slug !== "string" || slug.trim().length === 0) {
+      return c.json({ code: -1000, msg: "doc.update.slug_required", data: null });
+    }
+    trimmedSlug = slug.trim().toLowerCase();
+    if (!vSlug(trimmedSlug)) {
+      return c.json({ code: -1000, msg: "doc.update.slug_invalid", data: null });
+    }
+    const conflict = await db.select({ id: docs.id }).from(docs).where(and6(eq7(docs.slug, trimmedSlug), ne(docs.id, id))).get();
+    if (conflict) {
+      return c.json({ code: -1000, msg: "doc.update.slug_exists", data: null });
+    }
+  }
+  if (status !== undefined && status !== "active" && status !== "inactive") {
+    return c.json({ code: -1000, msg: "doc.update.status_invalid", data: null });
+  }
+  const updates = { updated_at: new Date };
+  if (notebook_id !== undefined)
+    updates.notebook_id = notebook_id;
+  if (slug !== undefined)
+    updates.slug = trimmedSlug;
+  if (title !== undefined)
+    updates.title = title;
+  if (description !== undefined)
+    updates.description = description;
+  if (keywords !== undefined)
+    updates.keywords = keywords;
+  if (status !== undefined)
+    updates.status = status;
+  const result = await db.update(docs).set(updates).where(eq7(docs.id, id)).returning().get();
+  return c.json({
+    code: 200,
+    msg: "doc.update.success",
+    data: result
+  });
+};
+var deleteDoc = async (c) => {
+  const payload = await c.req.json();
+  const { ids } = payload || {};
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return c.json({ code: -1000, msg: "doc.delete.id_required", data: null });
+  }
+  for (const id of ids) {
+    if (typeof id !== "number" || !Number.isFinite(id) || id <= 0) {
+      return c.json({ code: -1000, msg: "doc.delete.id_invalid", data: null });
+    }
+  }
+  const existingIds = await db.select({ id: docs.id }).from(docs).where(inArray3(docs.id, ids)).all();
+  if (existingIds.length !== ids.length) {
+    return c.json({ code: -1000, msg: "doc.delete.not_found", data: null });
+  }
+  await db.delete(docs).where(inArray3(docs.id, ids)).run();
+  return c.json({
+    code: 200,
+    msg: "doc.delete.success",
+    data: { deleted_count: ids.length }
+  });
+};
+var getPublicDoc = async (c) => {
+  const slug = c.req.param("slug");
+  const doc = await db.select().from(docs).where(eq7(docs.slug, slug)).get();
+  if (!doc || doc.status !== "active") {
+    return c.json({ code: -1000, msg: "doc.public.not_found", data: null });
+  }
+  const rootNotebook = await db.select({ title: notebooks.title, description: notebooks.description }).from(notebooks).where(eq7(notebooks.id, doc.notebook_id)).get();
+  const notebookIds = await collectSubtreeIds(doc.notebook_id);
+  const idList = [...notebookIds];
+  const notebooks2 = await db.select({
+    id: notebooks.id,
+    parent_id: notebooks.parent_id,
+    title: notebooks.title,
+    sort_order: notebooks.sort_order
+  }).from(notebooks).where(inArray3(notebooks.id, idList)).orderBy(asc2(notebooks.sort_order)).all();
+  const notes2 = await db.select({
+    id: notes.id,
+    notebook_id: notes.notebook_id,
+    title: notes.title,
+    is_pinned: notes.is_pinned,
+    sort_order: notes.sort_order,
+    created_at: notes.created_at,
+    updated_at: notes.updated_at
+  }).from(notes).where(and6(inArray3(notes.notebook_id, idList), eq7(notes.is_deleted, 0))).orderBy(desc4(notes.is_pinned), asc2(notes.sort_order), desc4(notes.created_at)).all();
+  const nodeMap = new Map;
+  for (const nb of notebooks2) {
+    nodeMap.set(nb.id, {
+      id: nb.id,
+      title: nb.title,
+      type: "notebook",
+      children: [],
+      notes: []
+    });
+  }
+  for (const note of notes2) {
+    const parent = nodeMap.get(note.notebook_id);
+    if (parent) {
+      parent.notes.push({ id: note.id, title: note.title, type: "note", updated_at: note.updated_at });
+    }
+  }
+  for (const nb of notebooks2) {
+    const node = nodeMap.get(nb.id);
+    if (nb.parent_id !== null && nodeMap.has(nb.parent_id)) {
+      nodeMap.get(nb.parent_id).children.push(node);
+    }
+  }
+  const rootNode = nodeMap.get(doc.notebook_id);
+  const tree = rootNode ? rootNode.children : [];
+  return c.json({
+    code: 200,
+    msg: "doc.public.success",
+    data: {
+      doc: {
+        title: doc.title || (rootNotebook?.title || ""),
+        description: doc.description || (rootNotebook?.description || ""),
+        keywords: doc.keywords
+      },
+      tree
+    }
+  });
+};
+var getPublicNote = async (c) => {
+  const slug = c.req.param("slug");
+  const noteId = Number(c.req.param("noteId"));
+  if (!noteId || isNaN(noteId)) {
+    return c.json({ code: -1000, msg: "doc.note.id_required", data: null });
+  }
+  const doc = await db.select().from(docs).where(eq7(docs.slug, slug)).get();
+  if (!doc || doc.status !== "active") {
+    return c.json({ code: -1000, msg: "doc.note.not_found", data: null });
+  }
+  const note = await db.select().from(notes).where(and6(eq7(notes.id, noteId), eq7(notes.is_deleted, 0))).get();
+  if (!note) {
+    return c.json({ code: -1000, msg: "doc.note.not_found", data: null });
+  }
+  const notebookIds = await collectSubtreeIds(doc.notebook_id);
+  if (!notebookIds.has(note.notebook_id)) {
+    return c.json({ code: -1000, msg: "doc.note.not_found", data: null });
+  }
+  return c.json({
+    code: 200,
+    msg: "doc.note.success",
+    data: {
+      id: note.id,
+      title: note.title,
+      content: note.content,
+      created_at: note.created_at,
+      updated_at: note.updated_at
+    }
+  });
+};
+
 // backend/middleware/auth.ts
-import { and as and6, eq as eq7 } from "drizzle-orm";
+import { and as and7, eq as eq8 } from "drizzle-orm";
 var verifyApiToken = async (token, c, role = "user") => {
   if (!token || token.length < 32) {
     return false;
   }
   try {
-    const session = await db.select().from(sessions).where(and6(eq7(sessions.token, token), eq7(sessions.status, "active"))).get();
+    const session = await db.select().from(sessions).where(and7(eq8(sessions.token, token), eq8(sessions.status, "active"))).get();
     if (!session) {
       return false;
     }
     if (session.expires_at.getTime() <= Date.now()) {
-      await db.update(sessions).set({ status: "expired" }).where(eq7(sessions.id, session.id)).run();
+      await db.update(sessions).set({ status: "expired" }).where(eq8(sessions.id, session.id)).run();
       return false;
     }
     if (role === "admin" && session.role !== "admin") {
@@ -11708,7 +11999,7 @@ var verifyApiToken = async (token, c, role = "user") => {
     const user = await db.select({
       id: users.id,
       username: users.username
-    }).from(users).where(and6(eq7(users.id, session.uid), eq7(users.status, "active"))).get();
+    }).from(users).where(and7(eq8(users.id, session.uid), eq8(users.status, "active"))).get();
     if (!user) {
       return false;
     }
@@ -11755,6 +12046,10 @@ publicRouter.get("/user", index2);
 publicRouter.get("/user/*", index2);
 publicRouter.get("/app", index2);
 publicRouter.get("/app/*", index2);
+publicRouter.get("/doc", index2);
+publicRouter.get("/doc/*", index2);
+publicRouter.get("/api/doc/:slug", getPublicDoc);
+publicRouter.get("/api/doc/:slug/note/:noteId", getPublicNote);
 publicRouter.get("/api/system/status", getSystemStatus);
 publicRouter.post("/api/init_user", initUser);
 publicRouter.post("/api/login", login);
@@ -11788,6 +12083,11 @@ userRouter.post("/file/upload", uploadFiles);
 adminRouter.get("/app_info", getAppInfo);
 adminRouter.get("/list_users", listUsers);
 adminRouter.post("/reset_user_password", resetUserPassword);
+adminRouter.get("/notebook/top", getAllTopLevelNotebooks);
+adminRouter.get("/doc/list", listDocs);
+adminRouter.post("/doc/create", createDoc);
+adminRouter.post("/doc/update", updateDoc);
+adminRouter.post("/doc/delete", deleteDoc);
 
 // backend/db/fts.ts
 var ensureFtsSchema = async () => {
