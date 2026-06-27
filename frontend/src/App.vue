@@ -4,6 +4,7 @@ import { RouterView } from "vue-router";
 import { NConfigProvider, NDialogProvider, NLoadingBarProvider, NMessageProvider, dateEnUS, dateZhCN, enUS, zhCN } from "naive-ui";
 import type { GlobalThemeOverrides } from "naive-ui";
 import { useI18n } from "vue-i18n";
+import LoadingBarGuard from "@/components/LoadingBarGuard.vue";
 
 const { locale } = useI18n();
 const naiveLocale = computed(() => (locale.value === "zh" ? zhCN : enUS));
@@ -22,6 +23,7 @@ const themeOverrides: GlobalThemeOverrides = {
 <template>
   <NConfigProvider :locale="naiveLocale" :date-locale="naiveDateLocale" :theme-overrides="themeOverrides">
     <NLoadingBarProvider>
+      <LoadingBarGuard />
       <NDialogProvider>
         <NMessageProvider>
           <RouterView />
