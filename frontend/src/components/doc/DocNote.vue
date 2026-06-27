@@ -116,6 +116,17 @@ watch(
         if (noteId) fetchNote(noteId);
     },
 );
+
+/** 当前预览的图片地址（空字符串表示无预览） */
+const previewSrc = ref("");
+
+/** 内容区点击事件委托：点击图片时打开全屏预览 */
+const handleContentClick = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === "IMG") {
+        previewSrc.value = (target as HTMLImageElement).src;
+    }
+};
 </script>
 
 <template>
@@ -144,13 +155,29 @@ watch(
       </div>
 
       <!-- Markdown 内容渲染 -->
-      <div ref="contentRef" class="doc-content">
+      <div ref="contentRef" class="doc-content" @click="handleContentClick">
         <ThemeProvider :theme="codeTheme">
           <IncremarkContent :content="note.content" :is-finished="true" />
         </ThemeProvider>
       </div>
     </template>
   </div>
+
+  <!-- 图片预览（Lightbox）：Teleport 到 body，避免被父容器裁剪 -->
+  <Teleport to="body">
+    <Transition name="lightbox-fade">
+      <div
+        v-if="previewSrc"
+        class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+        @click="previewSrc = ''"
+      >
+        <img
+          :src="previewSrc"
+          class="max-h-[90vh] max-w-[90vw] cursor-zoom-out object-contain shadow-2xl"
+        />
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style>
@@ -158,6 +185,7 @@ watch(
 .doc-content {
   line-height: 1.75;
   color: #334155;
+  overflow-wrap: break-word;
 }
 .doc-content h1 { font-size: 1.75rem; font-weight: 700; margin-top: 2rem; margin-bottom: 0.75rem; color: #0f172a; }
 .doc-content h2 { font-size: 1.4rem; font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.5rem; color: #1e293b; padding-bottom: 0.3rem; border-bottom: 1px solid #e2e8f0; }
@@ -172,9 +200,45 @@ watch(
 .doc-content li { margin-bottom: 0.25rem; }
 .doc-content a { color: #2563eb; text-decoration: underline; }
 .doc-content blockquote { padding-left: 1rem; margin: 1rem 0; color: #64748b; overflow-wrap: break-word; word-break: break-word; }
-.doc-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-.doc-content th, .doc-content td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; text-align: left; }
+.doc-content table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 1rem 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.doc-content th, .doc-content td {
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  background: transparent;
+}
+.doc-content th:last-child, .doc-content td:last-child { border-right: none; }
+.doc-content tbody tr:last-child th,
+.doc-content tbody tr:last-child td { border-bottom: none; }
 .doc-content th { background: #f8fafc; font-weight: 600; }
-.doc-content img { max-width: 100%; border-radius: 0.375rem; }
+.doc-content img { max-width: 100%; border-radius: 0.375rem; cursor: zoom-in; }
+
+/* 手机端：表格横向滚动，不强制换行压缩 */
+@media (max-width: 767px) {
+  .doc-content table {
+    display: block;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .doc-content th, .doc-content td {
+    white-space: nowrap;
+  }
+}
 .doc-content .incremark-code .code-btn:hover:not(:disabled) { background-color: rgba(255, 255, 255, 0.1); }
+
+/* Lightbox 淡入淡出动画 */
+.lightbox-fade-enter-active,
+.lightbox-fade-leave-active { transition: opacity 0.2s ease; }
+.lightbox-fade-enter-from,
+.lightbox-fade-leave-to { opacity: 0; }
 </style>
