@@ -5,7 +5,7 @@
  * - 通过 provide 向子组件提供数据
  * - 响应式三栏布局（PC/平板/手机）
  */
-import { computed, onMounted, provide, ref, watch, type Ref } from "vue";
+import { computed, onMounted, provide, ref, watch, watchEffect, type Ref } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import req from "@/utils/req";
@@ -59,6 +59,64 @@ const contentRef = ref<HTMLElement | null>(null);
 
 /** 文档展示标题：优先覆盖标题，否则用文档原标题 */
 const displayTitle = computed(() => docInfo.value?.title || "");
+
+/** 在树中递归查找指定 id 的分类节点（仅查分类节点，不查笔记，避免 id 冲突） */
+const findCategoryById = (nodes: any[], id: number): any | null => {
+    for (const node of nodes) {
+        if (node.id === id) return node;
+        if (node.children) {
+            const found = findCategoryById(node.children, id);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+/** 在树中递归查找指定 id 的笔记节点（仅查笔记，不查分类节点，避免 id 冲突） */
+const findNoteById = (nodes: any[], id: number): any | null => {
+    for (const node of nodes) {
+        if (node.notes) {
+            const note = node.notes.find((n: any) => n.id === id);
+            if (note) return note;
+        }
+        if (node.children) {
+            const found = findNoteById(node.children, id);
+            if (found) return found;
+        }
+    }
+    return null;
+};
+
+/** 当前激活的分类 */
+const currentCategory = computed(() => {
+    if (activeNotebookId.value !== null) {
+        return findCategoryById(tree.value, activeNotebookId.value);
+    }
+    return null;
+});
+
+/** 当前激活的笔记 */
+const currentNote = computed(() => {
+    if (activeNoteId.value !== null) {
+        return findNoteById(tree.value, activeNoteId.value);
+    }
+    return null;
+});
+
+/** 浏览器标题：笔记/分类页 = 【子级标题 - 主标题】，首页 = 主标题 */
+const pageTitle = computed(() => {
+    const main = displayTitle.value;
+    const sub = currentNote.value || currentCategory.value;
+    if (sub?.title) {
+        return `${sub.title} - ${main}`;
+    }
+    return main;
+});
+
+/** 同步更新浏览器标签页标题 */
+watchEffect(() => {
+    document.title = pageTitle.value;
+});
 
 /** 获取文档结构 */
 const fetchDoc = async () => {
