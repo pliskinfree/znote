@@ -35,5 +35,15 @@ const emit = defineEmits<{
         <span class="truncate text-base font-semibold text-slate-800">{{ title }}</span>
       </a>
     </div>
+    <!-- 右上角：GitHub 链接（新窗口打开） -->
+    <a
+      href="https://github.com/helloxz/znote"
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="GitHub"
+      class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+    >
+      <ZIcon name="ri:github-fill" :size="24" />
+    </a>
   </header>
 </template>
