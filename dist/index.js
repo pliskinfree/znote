@@ -10412,8 +10412,8 @@ var getBearerToken = (c) => {
 };
 
 // backend/api/info.ts
-var APP_VERSION = "0.1.0";
-var APP_DATE = "2026062702";
+var APP_VERSION = "0.2.0";
+var APP_DATE = "2026062703";
 var getAppInfo = async (c) => {
   const userCount = await db.select({ count: count() }).from(users);
   return c.json({
@@ -12088,6 +12088,7 @@ adminRouter.get("/doc/list", listDocs);
 adminRouter.post("/doc/create", createDoc);
 adminRouter.post("/doc/update", updateDoc);
 adminRouter.post("/doc/delete", deleteDoc);
+publicRouter.notFound(index2);
 
 // backend/db/fts.ts
 var ensureFtsSchema = async () => {
