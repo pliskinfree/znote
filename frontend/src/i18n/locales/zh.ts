@@ -193,7 +193,7 @@ export default {
     "note.notebook.switcher.label": "当前笔记本",
     "note.notebook.switcher.placeholder": "请选择笔记本",
     "note.notebook.create.button": "新建笔记本",
-    "note.notebook.create.disabled_tooltip": "最多只能创建 5 个笔记本",
+    "note.notebook.create.disabled_tooltip": "最多只能创建 10 个笔记本",
     "note.notebook.create.title": "新建笔记本",
     "note.notebook.create.placeholder": "请输入笔记本名称",
     "note.notebook.delete.button": "删除当前笔记本",

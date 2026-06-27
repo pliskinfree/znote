@@ -36,7 +36,7 @@ const emit = defineEmits<{
 }>();
 
 /** 顶层笔记本数量上限；达到上限时禁用 + 按钮，避免无限制扩张 */
-const MAX_NOTEBOOKS = 5;
+const MAX_NOTEBOOKS = 10;
 
 /** 局部暗色主题覆盖：primary 用更亮的 blue-400 系，让选中项在 slate-800 上通透清晰不发虚 */
 const darkThemeOverrides: GlobalThemeOverrides = {

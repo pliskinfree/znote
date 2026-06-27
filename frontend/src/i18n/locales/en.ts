@@ -193,7 +193,7 @@ export default {
     "note.notebook.switcher.label": "Current Notebook",
     "note.notebook.switcher.placeholder": "Select a notebook",
     "note.notebook.create.button": "New Notebook",
-    "note.notebook.create.disabled_tooltip": "Maximum of 5 notebooks allowed",
+    "note.notebook.create.disabled_tooltip": "Maximum of 10 notebooks allowed",
     "note.notebook.create.title": "New Notebook",
     "note.notebook.create.placeholder": "Enter notebook name",
     "note.notebook.delete.button": "Delete Current Notebook",
