@@ -127,4 +127,4 @@ adminRouter.post("/doc/update", updateDoc);
 adminRouter.post("/doc/delete", deleteDoc);
 
 // 兜底路由：所有未匹配的 GET 请求返回 SPA HTML，由前端 Vue Router 接管（含 404 页面）
-publicRouter.get("*", index);
+publicRouter.notFound(index);

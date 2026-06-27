@@ -13,6 +13,7 @@ import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useSystemStore } from "@/stores/system";
 import { useUserStore } from "@/stores/user";
+import req from "@/utils/req";
 import ZIcon from "@/components/DynamicIcon.vue";
 
 const { t } = useI18n();
@@ -88,9 +89,13 @@ const scrollToFeatures = () => {
 
 onMounted(() => {
     void systemStore.fetchStatus();
-    // 若有 token，从 sessionStorage 恢复用户信息用于动态显示 Nav
-    if (localStorage.getItem("token")) {
-        userStore.getCachedUserInfo();
+    const token = localStorage.getItem("token");
+    if (token) {
+        req.get("/api/user/check_login").then((res) => {
+            if (res.data?.code === 200) {
+                userStore.getUserInfo();
+            }
+        });
     }
 });
 </script>
