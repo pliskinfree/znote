@@ -43,7 +43,7 @@ export const index = async (c: Context) => {
   </head>
   <body>
     <div id="app"></div>
-    <div id="app-loading">正在加载 ${title}...</div>
+    <div id="app-loading">Loading...</div>
   </body>
 </html>`);
 };
