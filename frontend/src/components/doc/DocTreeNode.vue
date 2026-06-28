@@ -4,7 +4,7 @@
  * - 分类节点：点击箭头可折叠/展开子节点，点击名称高亮（桌面端跳转到分类附近）
  * - 笔记节点：点击跳转到笔记详情页面
  */
-import { computed, inject, ref, type Ref } from "vue";
+import { computed, inject, ref, watch, type Ref } from "vue";
 import { useRouter } from "vue-router";
 import ZIcon from "@/components/DynamicIcon.vue";
 
@@ -30,8 +30,18 @@ const props = defineProps<{
 /** 注入当前激活的分类 ID */
 const activeNotebookId = inject<Ref<number | null>>("activeNotebookId", ref(null));
 
-/** 分类节点是否展开 */
-const expanded = ref(false);
+/** 注入需要自动展开的节点 ID 集合（首次加载时由 DocView 计算） */
+const expandedIds = inject<Ref<Set<number>>>("expandedIds", ref(new Set()));
+
+/** 分类节点是否展开（首次加载时根据 expandedIds 自动展开对应分类） */
+const expanded = ref(expandedIds.value.has(props.node.id));
+
+/** 当 expandedIds 更新时（SPA 内导航），自动展开对应的分类节点 */
+watch(expandedIds, (ids) => {
+    if (ids.has(props.node.id)) {
+        expanded.value = true;
+    }
+});
 
 /** 当前分类是否处于激活状态（当前打开的分类页） */
 const isActive = computed(() => {
@@ -91,6 +101,7 @@ const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       <div
         v-for="note in node.notes"
         :key="note.id"
+        :data-note-id="note.id"
         class="group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1 text-sm transition"
         :class="activeNoteId === note.id ? 'bg-blue-50 text-blue-600 font-medium' : 'text-slate-600 hover:bg-slate-100/80'"
         @click="goToNote(note.id)"

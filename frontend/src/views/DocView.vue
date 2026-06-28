@@ -87,6 +87,31 @@ const findNoteById = (nodes: any[], id: number): any | null => {
     return null;
 };
 
+/** 需要自动展开的分类节点 ID 集合（首次加载时根据 activeNoteId 计算） */
+const expandedIds = ref<Set<number>>(new Set());
+
+/**
+ * 递归查找指定笔记所在的分类路径，返回路径上所有分类的 ID
+ * 用于首次加载时自动展开到当前笔记所在位置
+ */
+const collectExpandIds = (nodes: any[], noteId: number): Set<number> => {
+    for (const node of nodes) {
+        // 当前分类直接包含该笔记
+        if (node.notes?.some((n: any) => n.id === noteId)) {
+            return new Set([node.id]);
+        }
+        // 在子分类中递归查找
+        if (node.children?.length) {
+            const ids = collectExpandIds(node.children, noteId);
+            if (ids.size > 0) {
+                ids.add(node.id);
+                return ids;
+            }
+        }
+    }
+    return new Set();
+};
+
 /** 当前激活的分类 */
 const currentCategory = computed(() => {
     if (activeNotebookId.value !== null) {
@@ -127,6 +152,10 @@ const fetchDoc = async () => {
         if (res.data?.code === 200) {
             tree.value = res.data.data?.tree || [];
             docInfo.value = res.data.data?.doc || {};
+            // 首次加载时，根据 activeNoteId 计算需要展开的分类路径
+            if (activeNoteId.value !== null) {
+                expandedIds.value = collectExpandIds(tree.value, activeNoteId.value);
+            }
         } else {
             error.value = t("doc.public.not_found");
         }
@@ -142,6 +171,7 @@ provide("docTree", tree);
 provide("docInfo", docInfo);
 provide("activeNoteId", activeNoteId);
 provide("activeNotebookId", activeNotebookId);
+provide("expandedIds", expandedIds);
 provide("slug", slug.value);
 provide("headings", headings);
 provide("contentRef", contentRef);
@@ -171,6 +201,10 @@ watch(() => route.fullPath, () => {
 watch(activeNoteId, (newId) => {
     if (newId === null) {
         headings.value = [];
+    }
+    // 在 SPA 内导航到笔记时，自动展开对应的分类路径
+    if (newId !== null && tree.value.length > 0) {
+        expandedIds.value = collectExpandIds(tree.value, newId);
     }
 });
 </script>

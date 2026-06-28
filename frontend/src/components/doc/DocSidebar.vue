@@ -3,7 +3,7 @@
  * 文档左侧栏：搜索框 + 树形导航
  * 从父组件 inject 获取树数据和状态
  */
-import { computed, inject, ref, type Ref } from "vue";
+import { computed, inject, nextTick, ref, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import ZIcon from "@/components/DynamicIcon.vue";
 import DocTreeNode from "@/components/doc/DocTreeNode.vue";
@@ -13,7 +13,11 @@ const { t } = useI18n();
 /** 注入父组件提供的文档树数据和状态 */
 const tree = inject<Ref<any[]>>("docTree", ref([]));
 const activeNoteId = inject<Ref<number | null>>("activeNoteId", ref(null));
+const expandedIds = inject<Ref<Set<number>>>("expandedIds", ref(new Set()));
 const slug = inject<string>("slug", "");
+
+/** 导航容器引用 */
+const navRef = ref<HTMLElement | null>(null);
 
 /** 搜索关键词 */
 const searchKeyword = ref("");
@@ -48,6 +52,14 @@ const filteredTree = computed(() => {
 
 /** 是否有笔记正在被查看 */
 const hasActiveNote = computed(() => activeNoteId.value !== null);
+
+/** 当自动展开分类后，滚动到当前激活的笔记位置 */
+watch(expandedIds, async (ids) => {
+    if (ids.size === 0 || activeNoteId.value === null) return;
+    await nextTick();
+    const el = navRef.value?.querySelector(`[data-note-id="${activeNoteId.value}"]`);
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+});
 </script>
 
 <template>
@@ -75,7 +87,7 @@ const hasActiveNote = computed(() => activeNoteId.value !== null);
     </div>
 
     <!-- 树形导航 -->
-    <nav class="flex-1 overflow-y-auto p-2">
+    <nav ref="navRef" class="flex-1 overflow-y-auto p-2">
       <!-- 空状态 -->
       <div
         v-if="tree.length === 0"
