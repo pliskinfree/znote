@@ -36,6 +36,16 @@ const editorRef = ref<HTMLDivElement>();
 let vditor: Vditor | null = null;
 
 /**
+ * 获取编辑器当前最新内容
+ * 直接从 Vditor 实例取值，避免 input 回调延迟导致 draftContent 不同步
+ */
+const getContent = (): string => {
+    return vditor?.getValue() ?? "";
+};
+
+defineExpose({ getContent });
+
+/**
  * onMounted 阶段创建 Vditor 实例
  * 配置即时渲染模式 + Ant Design 内容主题 + Github 代码主题
  */

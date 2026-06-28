@@ -577,6 +577,10 @@ const handleOpenCreateNote = async () => {
 
 /** 选中笔记（同时更新 URL；await 等待 selectNote 内部数据就绪后再路由） */
 const handleSelectNote = async (id: number) => {
+    // 切换前，如果有未保存修改，先保存当前笔记
+    if (hasUnsavedChanges.value && noteStore.activeNoteId !== null) {
+        await handleSaveNote();
+    }
     await noteStore.selectNote(id);
     router.push(`/app/note/${id}`);
 };
@@ -620,9 +624,20 @@ watch(
     },
 );
 
+/** NoteEditor 组件引用（用于获取最新编辑器内容） */
+const editorRef = ref<InstanceType<typeof NoteEditor> | null>(null);
+
 /** 编辑器内容变更 → 暂存到草稿 */
 const handleEditorChange = (value: string) => {
     draftContent.value = value;
+};
+
+/**
+ * 获取编辑器最新内容
+ * 直接从 Vditor 实例取值，避免 input 回调延迟导致 draftContent 不同步
+ */
+const getLatestContent = (): string => {
+    return editorRef.value?.getContent() ?? draftContent.value;
 };
 
 /** 保存笔记（标题 + 内容） */
@@ -630,9 +645,13 @@ const handleSaveNote = async () => {
     if (noteStore.activeNoteId === null) return;
     isSaving.value = true;
     try {
+        // 直接从编辑器获取最新内容，避免 input 回调延迟导致 draftContent 不同步
+        const latestContent = getLatestContent();
+        draftContent.value = latestContent;
+
         await noteStore.updateNote(noteStore.activeNoteId, {
             title: draftTitle.value,
-            content: draftContent.value,
+            content: latestContent,
         });
         // 轻量提示
         message.success(t("note.editor.saved"));
@@ -671,13 +690,17 @@ const handleSaveTitle = async () => {
         draftTitle.value = noteStore.activeNote?.title ?? t("note.note.untitled");
         return;
     }
+    // 直接从编辑器获取最新内容，避免 input 回调延迟导致 draftContent 不同步
+    const latestContent = getLatestContent();
+    draftContent.value = latestContent;
+
     // 标题或内容有变化时才保存
-    if (trimmed !== noteStore.activeNote?.title || draftContent.value !== noteStore.activeNote?.content) {
+    if (trimmed !== noteStore.activeNote?.title || latestContent !== noteStore.activeNote?.content) {
         isSaving.value = true;
         try {
             await noteStore.updateNote(noteStore.activeNoteId, {
                 title: trimmed,
-                content: draftContent.value,
+                content: latestContent,
             });
         } finally {
             isSaving.value = false;
@@ -894,6 +917,7 @@ const handleSaveTitle = async () => {
         <!-- 编辑器主体 -->
         <div class="flex-1 overflow-hidden bg-white px-8 pb-6 pt-0">
           <NoteEditor
+            ref="editorRef"
             :model-value="draftContent"
             height="100%"
             @update:model-value="handleEditorChange"
@@ -1214,6 +1238,7 @@ const handleSaveTitle = async () => {
         </div>
         <div class="flex-1 overflow-hidden bg-white px-4 pb-4 pt-0">
           <NoteEditor
+            ref="editorRef"
             :model-value="draftContent"
             height="100%"
             @update:model-value="handleEditorChange"
