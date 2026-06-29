@@ -8,3 +8,4 @@ frontend/dist/
 frontend/.env.local
 .env
 frontent/.env.development
+znote-mobile
