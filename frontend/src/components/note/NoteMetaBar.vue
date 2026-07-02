@@ -23,6 +23,8 @@ const props = defineProps<{
     viewingVersion?: boolean;
     /** 移动端精简模式（隐藏时间和历史按钮，保存按钮改为纯图标） */
     mobile?: boolean;
+    /** 自动保存状态：saved 已保存 / saving 保存中 / unsaved 未保存 */
+    autoSaveStatus?: "saved" | "saving" | "unsaved";
 }>();
 
 const emit = defineEmits<{
@@ -71,8 +73,23 @@ const updatedText = computed(() => formatTime(props.note.updated_at));
       </div>
     </div>
 
-    <!-- 右侧：历史按钮 + 保存按钮 -->
+    <!-- 右侧：自动保存状态 + 历史按钮 + 保存按钮 -->
     <div class="flex shrink-0 items-center gap-2">
+      <!-- 自动保存状态指示器（移动端隐藏） -->
+      <template v-if="!mobile">
+        <div v-if="autoSaveStatus === 'saved'" class="flex items-center gap-1 text-xs text-emerald-500">
+          <ZIcon name="ri:check-line" :size="12" color="currentColor" />
+          <span>{{ t("note.editor.auto_saved") }}</span>
+        </div>
+        <div v-else-if="autoSaveStatus === 'unsaved'" class="flex items-center gap-1 text-xs text-amber-500">
+          <span class="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+          <span>{{ t("note.editor.unsaved") }}</span>
+        </div>
+        <div v-else-if="autoSaveStatus === 'saving'" class="flex items-center gap-1 text-xs text-slate-400">
+          <ZIcon name="ri:loader-4-line" :size="11" color="currentColor" class="animate-spin" />
+          <span>{{ t("note.editor.auto_saving") }}</span>
+        </div>
+      </template>
       <!-- 回到当前按钮（仅查看历史模式时展示） -->
       <button
         v-if="viewingVersion"

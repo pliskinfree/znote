@@ -132,7 +132,9 @@ export const updateNote = async (c: Context) => {
     const uid = Number(c.get("uid"));
     const payload = await c.req.json();
 
-    const { id, title, content, notebook_id, is_pinned, sort_order } = payload || {};
+    const { id, title, content, notebook_id, is_pinned, sort_order, create_version } = payload || {};
+    // 默认创建版本快照，自动保存时前端传 false
+    const shouldCreateVersion = create_version !== false;
 
     // 校验 id
     if (!id || typeof id !== "number") {
@@ -205,7 +207,7 @@ export const updateNote = async (c: Context) => {
 
     // 事务：存历史快照（可选）→ 更新笔记，保证原子性
     const result = await db.transaction(async (tx) => {
-        if (needVersion) {
+        if (needVersion && shouldCreateVersion) {
             // 版本号 = 当前最大 version_no + 1（单用户无协作，事务内安全）
             const maxRow = await tx
                 .select({ maxNo: sql<number>`MAX(${schema.noteVersions.version_no})` })

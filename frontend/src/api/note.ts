@@ -45,8 +45,9 @@ export const createNote = async (payload: CreateNotePayload): Promise<Note | nul
 export const updateNote = async (
     id: number,
     payload: Partial<Pick<Note, "title" | "content" | "notebook_id" | "is_pinned" | "sort_order">>,
+    createVersion = true,
 ): Promise<Note | null> => {
-    const res = await req.post<ApiResult<Note>>("/api/user/notebook/note/update", { id, ...payload });
+    const res = await req.post<ApiResult<Note>>("/api/user/notebook/note/update", { id, ...payload, create_version: createVersion });
     if (res.data?.code === 200) {
         return res.data.data;
     }

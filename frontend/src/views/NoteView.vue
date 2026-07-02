@@ -254,6 +254,81 @@ const isSaving = ref(false);
 /** 标题输入框 ref（用于自动聚焦） */
 const titleInputRef = ref<HTMLInputElement | null>(null);
 
+// ==================== 自动保存 ====================
+
+/** 自动保存状态：saved 已保存 / saving 保存中 / unsaved 有未保存更改 */
+const autoSaveStatus = ref<"saved" | "saving" | "unsaved">("saved");
+/** 自动保存防抖定时器 */
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+/** 标记是否正在执行自动保存（防止并发） */
+let autoSaving = false;
+
+/** 执行静默保存：不创建版本快照，仅持久化内容 */
+const performAutoSave = async () => {
+    const id = noteStore.activeNoteId;
+    if (id === null || autoSaving) return;
+
+    const latestContent = getLatestContent();
+    const saved = noteStore.activeNote;
+    if (saved && draftTitle.value === saved.title && latestContent === saved.content) {
+        autoSaveStatus.value = "saved";
+        return;
+    }
+
+    autoSaving = true;
+    autoSaveStatus.value = "saving";
+    try {
+        await noteStore.updateNote(id, {
+            title: draftTitle.value,
+            content: latestContent,
+        }, false);
+        autoSaveStatus.value = "saved";
+    } catch {
+        autoSaveStatus.value = "unsaved";
+    } finally {
+        autoSaving = false;
+    }
+};
+
+/** 5 秒防抖触发自动保存 */
+const scheduleAutoSave = () => {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveStatus.value = "unsaved";
+    autoSaveTimer = setTimeout(() => {
+        void performAutoSave();
+    }, 5000);
+};
+
+/** 监听草稿变化，触发防抖自动保存 */
+watch(
+    [draftTitle, draftContent],
+    () => {
+        // 没有选中笔记或正在手动保存时，不触发自动保存
+        if (noteStore.activeNoteId === null || isSaving.value) return;
+        scheduleAutoSave();
+    },
+);
+
+/** 页面关闭/刷新时兜底保存（不创建版本快照） */
+const handleBeforeUnload = () => {
+    if (!hasUnsavedChanges.value || noteStore.activeNoteId === null || isSaving.value) return;
+    const token = localStorage.getItem("token");
+    fetch("/api/user/notebook/note/update", {
+        method: "POST",
+        keepalive: true,
+        headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+            id: noteStore.activeNoteId,
+            title: draftTitle.value,
+            content: getLatestContent(),
+            create_version: false,
+        }),
+    });
+};
+
 /** 编辑器是否有未保存修改——后台轮询据此判断是否跳过激活笔记刷新 */
 const hasUnsavedChanges = computed(() => {
     if (noteStore.activeNoteId === null) return false;
@@ -371,11 +446,15 @@ onMounted(async () => {
 
     // 注册全局快捷键：Ctrl+S / Cmd+S 保存
     window.addEventListener("keydown", handleSaveShortcut);
+    // 注册页面关闭/刷新时的兜底保存
+    window.addEventListener("beforeunload", handleBeforeUnload);
 });
 
-/** 组件卸载时清理键盘监听 */
+/** 组件卸载时清理键盘监听、兜底保存、自动保存定时器 */
 onBeforeUnmount(() => {
     window.removeEventListener("keydown", handleSaveShortcut);
+    window.removeEventListener("beforeunload", handleBeforeUnload);
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
 });
 
 /** 路由 query 变化时支持深链（可选） */
@@ -640,10 +719,12 @@ const getLatestContent = (): string => {
     return editorRef.value?.getContent() ?? draftContent.value;
 };
 
-/** 保存笔记（标题 + 内容） */
+/** 保存笔记（标题 + 内容）：手动保存，创建版本快照 */
 const handleSaveNote = async () => {
     if (noteStore.activeNoteId === null) return;
     isSaving.value = true;
+    // 清除自动保存定时器，防止手动保存期间自动保存被触发
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
     try {
         // 直接从编辑器获取最新内容，避免 input 回调延迟导致 draftContent 不同步
         const latestContent = getLatestContent();
@@ -655,6 +736,7 @@ const handleSaveNote = async () => {
         });
         // 轻量提示
         message.success(t("note.editor.saved"));
+        autoSaveStatus.value = "saved";
 
         // 保存成功后自动退出历史查看模式（保存即回滚生效，内容已成新当前态）
         if (viewingVersion.value) {
@@ -697,11 +779,13 @@ const handleSaveTitle = async () => {
     // 标题或内容有变化时才保存
     if (trimmed !== noteStore.activeNote?.title || latestContent !== noteStore.activeNote?.content) {
         isSaving.value = true;
+        if (autoSaveTimer) clearTimeout(autoSaveTimer);
         try {
             await noteStore.updateNote(noteStore.activeNoteId, {
                 title: trimmed,
                 content: latestContent,
             });
+            autoSaveStatus.value = "saved";
         } finally {
             isSaving.value = false;
         }
@@ -896,6 +980,7 @@ const handleSaveTitle = async () => {
               :category-name="activeCategoryName"
               :saving="isSaving"
               :viewing-version="viewingVersion"
+              :auto-save-status="autoSaveStatus"
               @save="handleSaveNote"
               @history="showVersionHistory = true"
               @back-to-current="handleBackToCurrent"
@@ -1220,6 +1305,7 @@ const handleSaveTitle = async () => {
               :category-name="activeCategoryName"
               :saving="isSaving"
               :viewing-version="viewingVersion"
+              :auto-save-status="autoSaveStatus"
               :mobile="true"
               @save="handleSaveNote"
               @history="showVersionHistory = true"

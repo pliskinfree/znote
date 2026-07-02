@@ -244,6 +244,8 @@ export default {
     "note.editor.saved": "Saved successfully",
     "note.editor.save_failed": "Save failed",
     "note.editor.unsaved": "Unsaved",
+    "note.editor.auto_saved": "Saved",
+    "note.editor.auto_saving": "Saving...",
     "note.meta.created_at": "Created at",
     "note.meta.updated_at": "Updated at",
     "note.meta.notebook": "Notebook",

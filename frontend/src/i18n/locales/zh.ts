@@ -244,6 +244,8 @@ export default {
     "note.editor.saved": "保存成功",
     "note.editor.save_failed": "保存失败",
     "note.editor.unsaved": "未保存",
+    "note.editor.auto_saved": "已保存",
+    "note.editor.auto_saving": "保存中...",
     "note.meta.created_at": "创建于",
     "note.meta.updated_at": "修改于",
     "note.meta.notebook": "所在分类",

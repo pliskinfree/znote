@@ -756,10 +756,11 @@ if (this.trashMode) this.exitTrashMode();
         async updateNote(
             id: number,
             payload: Partial<Pick<import("@/types/note").Note, "title" | "content" | "notebook_id" | "is_pinned" | "sort_order">>,
+            createVersion = true,
         ) {
             this.loading.save = true;
             try {
-                const result = await noteApi.updateNote(id, payload);
+                const result = await noteApi.updateNote(id, payload, createVersion);
                 if (result) {
                     // 同步更新分类缓存中对应的笔记
                     for (const cid of Object.keys(this.notesByCategory)) {
