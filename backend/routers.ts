@@ -72,7 +72,7 @@ publicRouter.use(
 publicRouter.use(
     "/_resources/*",
     serveStatic({
-        root: "./data/_resources",
+        root: "./data",
         onFound: (_path, c) => {
             c.header("Cache-Control", "public, immutable, max-age=604800");
         },
@@ -82,7 +82,7 @@ publicRouter.use(
 publicRouter.use(
     "/assets/*",
     serveStatic({
-        root: "./data/assets",
+        root: "./data",
         onFound: (_path, c) => {
             c.header("Cache-Control", "public, immutable, max-age=604800");
         },
