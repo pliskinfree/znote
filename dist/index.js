@@ -10428,8 +10428,8 @@ var getBearerToken = (c) => {
 };
 
 // backend/api/info.ts
-var APP_VERSION = "0.3.1";
-var APP_DATE = "2026062900";
+var APP_VERSION = "0.3.2";
+var APP_DATE = "2026070207";
 var getAppInfo = async (c) => {
   const userCount = await db.select({ count: count() }).from(users);
   return c.json({
@@ -11187,7 +11187,8 @@ var createNote = async (c) => {
 var updateNote = async (c) => {
   const uid = Number(c.get("uid"));
   const payload = await c.req.json();
-  const { id, title, content, notebook_id, is_pinned, sort_order } = payload || {};
+  const { id, title, content, notebook_id, is_pinned, sort_order, create_version } = payload || {};
+  const shouldCreateVersion = create_version !== false;
   if (!id || typeof id !== "number") {
     return c.json({
       code: -1000,
@@ -11238,7 +11239,7 @@ var updateNote = async (c) => {
   const contentChanged = content !== undefined && content.trim() !== oldNote.content && content.trim() !== "";
   const needVersion = titleChanged || contentChanged;
   const result = await db.transaction(async (tx) => {
-    if (needVersion) {
+    if (needVersion && shouldCreateVersion) {
       const maxRow = await tx.select({ maxNo: sql2`MAX(${noteVersions.version_no})` }).from(noteVersions).where(eq5(noteVersions.note_id, id)).get();
       const nextVersionNo = (maxRow?.maxNo ?? 0) + 1;
       await tx.insert(noteVersions).values({
@@ -12353,6 +12354,18 @@ publicRouter.use("/static/*", serveStatic2({
   }
 }));
 publicRouter.use("/files/*", serveStatic2({
+  root: "./data",
+  onFound: (_path, c) => {
+    c.header("Cache-Control", "public, immutable, max-age=604800");
+  }
+}));
+publicRouter.use("/_resources/*", serveStatic2({
+  root: "./data",
+  onFound: (_path, c) => {
+    c.header("Cache-Control", "public, immutable, max-age=604800");
+  }
+}));
+publicRouter.use("/assets/*", serveStatic2({
   root: "./data",
   onFound: (_path, c) => {
     c.header("Cache-Control", "public, immutable, max-age=604800");
