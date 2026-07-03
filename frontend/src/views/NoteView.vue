@@ -288,7 +288,7 @@ const performAutoSave = async () => {
     } catch {
         autoSaveStatus.value = "unsaved";
     } finally {
-        autoSaving = false;
+        nextTick(() => { autoSaving = false; });
     }
 };
 
@@ -309,7 +309,7 @@ const scheduleAutoSave = () => {
     autoSaveStatus.value = "unsaved";
     autoSaveTimer = setTimeout(() => {
         void performAutoSave();
-    }, 5000);
+    }, 20000);
 };
 
 /** 监听草稿变化，触发防抖自动保存 */
@@ -709,10 +709,12 @@ const handleEnterShares = async () => {
 /**
  * 同步草稿状态
  * 监听 activeNote 而非 activeNoteId，避免 selectNote async 期间提前 flush 空白数据
+ * 保存进行中跳过同步，避免覆盖用户正在输入的内容（导致光标跳动）
  */
 watch(
     () => noteStore.activeNote,
     (note) => {
+        if (isSaving.value || autoSaving) return;
         draftTitle.value = note?.title ?? "";
         draftContent.value = note?.content ?? "";
     },
@@ -763,7 +765,7 @@ const handleSaveNote = async () => {
     } catch {
         message.error(t("note.editor.save_failed"));
     } finally {
-        isSaving.value = false;
+        nextTick(() => { isSaving.value = false; });
     }
 };
 
@@ -803,7 +805,7 @@ const handleSaveTitle = async () => {
             });
             autoSaveStatus.value = "saved";
         } finally {
-            isSaving.value = false;
+            nextTick(() => { isSaving.value = false; });
         }
     }
 };

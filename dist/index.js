@@ -10428,8 +10428,8 @@ var getBearerToken = (c) => {
 };
 
 // backend/api/info.ts
-var APP_VERSION = "0.3.2";
-var APP_DATE = "2026070207";
+var APP_VERSION = "0.3.3";
+var APP_DATE = "2026070301";
 var getAppInfo = async (c) => {
   const userCount = await db.select({ count: count() }).from(users);
   return c.json({
