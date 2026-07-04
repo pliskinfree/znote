@@ -24,9 +24,17 @@ export const menuConfig = [
         route: "/dashboard/users",
     },
     {
-        id: "settings",
-        titleKey: "dashboard.settings",
+        id: "system",
+        titleKey: "dashboard.system",
         icon: "ri:settings-3-line",
-        route: "/dashboard/settings",
+        expanded: false,
+        children: [
+            {
+                id: "site_setting",
+                titleKey: "dashboard.site_setting",
+                icon: "ri:global-line",
+                route: "/dashboard/site_setting",
+            },
+        ],
     },
 ];

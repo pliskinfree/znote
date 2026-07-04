@@ -151,6 +151,16 @@ export const files = sqliteTable("files", {
     index("idx_files_file_id").on(table.file_id),
 ]);
 
+// ==================== 全局设置 ====================
+
+/** 管理员全局设置表（Key-Value 方案，value 存储 JSON 对象） */
+export const globalSettings = sqliteTable("global_settings", {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    key: text("key").notNull().unique(),
+    value: text("value").notNull(),
+    updated_at: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
 // ==================== 公开文档 ====================
 
 /**

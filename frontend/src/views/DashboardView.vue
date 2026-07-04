@@ -10,6 +10,7 @@ import DocsPanel from "@/components/dashboard/DocsPanel.vue";
 import UsersPanel from "@/components/dashboard/UsersPanel.vue";
 import TemplatePanel from "@/components/dashboard/TemplatePanel.vue";
 import SystemPanel from "@/components/dashboard/SystemPanel.vue";
+import SiteSettingPanel from "@/components/dashboard/SiteSettingPanel.vue";
 import { useUserStore } from "@/stores/user";
 import { useSiteStore } from "@/stores/site";
 
@@ -23,13 +24,18 @@ const sidebarOpen = ref(false);
 const currentRoute = ref("/dashboard/home");
 const currentComponent = shallowRef(HomePanel);
 
+// 组件映射表
 const componentMap: Record<string, any> = {
     home: HomePanel,
     docs: DocsPanel,
     users: UsersPanel,
     templates: TemplatePanel,
     settings: SystemPanel,
+    site_setting: SiteSettingPanel,
 };
+
+// 深拷贝菜单配置，使 expanded 属性可响应
+const menus = ref(JSON.parse(JSON.stringify(menuConfig)));
 
 const appName = computed(() => siteStore.appInfo.app_name || "ZNote");
 
@@ -38,12 +44,23 @@ const userMenuOptions = computed(() => [
     { label: t("dashboard.user_menu.logout"), key: "logout", icon: () => h(ZIcon, { name: "ri:logout-box-line", size: 16 }) },
 ]);
 
+// 导航到指定路由
 const navigateTo = async (path: string) => {
     currentRoute.value = path;
     sidebarOpen.value = false;
     await router.push(path);
 };
 
+// 菜单点击：有 children 则折叠/展开，有 route 则导航
+const handleMenuClick = async (menu: any) => {
+    if (menu.children?.length) {
+        menu.expanded = !menu.expanded;
+    } else if (menu.route) {
+        await navigateTo(menu.route);
+    }
+};
+
+// 根据路由名称加载组件
 const loadRouteComponent = (name?: string | string[]) => {
     const routeName = typeof name === "string" ? name : "home";
     currentRoute.value = `/dashboard/${routeName}`;
@@ -101,17 +118,49 @@ watch(() => route.params.name, (name) => {
         'fixed inset-y-0 left-0 top-14 z-40 w-60 bg-[#242739] text-white transition-transform duration-300 lg:static lg:translate-x-0',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       ]">
-        <nav class="space-y-1 p-3">
-          <button
-            v-for="menu in menuConfig"
-            :key="menu.id"
-            class="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition"
-            :class="currentRoute === menu.route ? 'bg-white/12 text-white' : 'text-white/70 hover:bg-white/8 hover:text-white'"
-            @click="navigateTo(menu.route)"
-          >
-            <ZIcon :name="menu.icon" size="18" color="currentColor" />
-            <span>{{ t(menu.titleKey) }}</span>
-          </button>
+        <nav class="flex-1 overflow-y-auto py-4">
+          <ul class="space-y-1 px-3">
+            <li v-for="menu in menus" :key="menu.id">
+              <!-- 一级菜单 -->
+              <div
+                class="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                :class="{ 'bg-white/10 text-white': currentRoute === menu.route }"
+                @click="handleMenuClick(menu)"
+              >
+                <ZIcon :name="menu.icon" size="18" class="flex-shrink-0 text-white/60" />
+                <span class="flex-1 text-sm font-medium">{{ t(menu.titleKey) }}</span>
+                <!-- 折叠箭头 -->
+                <ZIcon
+                  v-if="menu.children?.length"
+                  name="ri:arrow-right-s-line"
+                  size="16"
+                  :class="['text-white/30 transition-transform duration-200', menu.expanded ? 'rotate-90' : '']"
+                />
+              </div>
+
+              <!-- 二级菜单 -->
+              <ul v-show="menu.children?.length && menu.expanded" class="mt-1 ml-3 space-y-1 border-l border-white/10 pl-1">
+                <li v-for="child in menu.children" :key="child.id">
+                  <div
+                    class="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200"
+                    :class="[
+                      currentRoute === child.route
+                        ? 'bg-[#4f46e5]/60 font-medium text-white'
+                        : 'text-white/60 hover:bg-white/10 hover:text-white'
+                    ]"
+                    @click="navigateTo(child.route)"
+                  >
+                    <ZIcon
+                      :name="child.icon"
+                      size="16"
+                      :class="[currentRoute === child.route ? 'text-white' : 'text-white/50', 'flex-shrink-0']"
+                    />
+                    <span>{{ t(child.titleKey) }}</span>
+                  </div>
+                </li>
+              </ul>
+            </li>
+          </ul>
         </nav>
       </aside>
 

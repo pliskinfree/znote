@@ -4,7 +4,13 @@ import { bearerAuth } from "hono/bearer-auth";
 import { cors } from "hono/cors";
 import { index } from "@/api/html";
 import { getAppInfo } from "@/api/info";
-import { getUserSetting, setUserSetting } from "@/api/setting";
+import {
+    getUserSetting,
+    setUserSetting,
+    setGlobalSetting,
+    getGlobalSetting,
+    getPublicSettings,
+} from "@/api/setting";
 import { getSystemStatus } from "@/api/system";
 import {
     changePassword,
@@ -105,6 +111,7 @@ publicRouter.get("/api/doc/:slug", getPublicDoc);
 publicRouter.get("/api/doc/:slug/note/:noteId", getPublicNote);
 publicRouter.get("/api/share/:shareId", getShare);
 publicRouter.get("/api/system/status", getSystemStatus);
+publicRouter.get("/api/public_setting", getPublicSettings);
 publicRouter.post("/api/init_user", initUser);
 publicRouter.post("/api/login", login);
 publicRouter.post("/api/register", register);
@@ -148,6 +155,11 @@ userRouter.post("/file/upload", uploadFiles);
 adminRouter.get("/app_info", getAppInfo);
 adminRouter.get("/list_users", listUsers);
 adminRouter.post("/reset_user_password", resetUserPassword);
+
+// 管理员设置全局配置
+adminRouter.post("/set_setting", setGlobalSetting);
+// 管理员获取全局配置
+adminRouter.get("/get_setting", getGlobalSetting);
 
 adminRouter.get("/notebook/top", getAllTopLevelNotebooks);
 

@@ -13,6 +13,8 @@ export default {
         "users",
         "sessions",
         "user_settings",
+        "note_shares",
+        "global_settings",
         "notebooks",
         "notes",
         "note_versions",
