@@ -13,6 +13,8 @@ import DocBreadcrumb from "@/components/doc/DocBreadcrumb.vue";
 import DocHeader from "@/components/doc/DocHeader.vue";
 import DocSidebar from "@/components/doc/DocSidebar.vue";
 import DocToc from "@/components/doc/DocToc.vue";
+import { NModal } from "naive-ui";
+import GuestAIView from "@/views/GuestAIView.vue";
 import ZIcon from "@/components/DynamicIcon.vue";
 
 const route = useRoute();
@@ -35,6 +37,23 @@ const activeNotebookId = computed<number | null>(() => {
 
 /** 侧栏开关（移动端抽屉） */
 const sidebarOpen = ref(false);
+
+/** AI 聊天弹窗显隐 */
+const showAiModal = ref(false);
+
+/** AI 按钮点击处理 */
+const handleAiClick = () => {
+    showAiModal.value = true;
+};
+
+/** 响应式 AI 弹窗尺寸：PC 窄弹窗，移动端全屏 */
+const modalStyle = computed(() => ({
+    width: isMobile.value ? "95vw" : "60vw",
+    height: isMobile.value ? "90vh" : "75vh",
+    maxWidth: isMobile.value ? "100%" : "900px",
+    maxHeight: isMobile.value ? "100%" : "800px",
+    borderRadius: "16px",
+}));
 
 /** 是否移动端（<768px，用于判断 <router-view> 是否独立滚动）*/
 const isMobile = ref(false);
@@ -310,6 +329,45 @@ watch(activeNoteId, (newId) => {
     <div class="xl:hidden">
       <DocToc floating :key="activeNoteId ?? undefined" />
     </div>
+
+    <!-- ==================== AI 悬浮按钮 ==================== -->
+    <button
+      class="ai-float-btn"
+      :title="t('note.ai.button')"
+      @click="handleAiClick"
+    >
+      <ZIcon name="ri:robot-2-line" :size="26" color="currentColor" />
+    </button>
+
+    <!-- ==================== AI 弹窗 ==================== -->
+    <NModal
+      v-model:show="showAiModal"
+      :auto-focus="false"
+      :mask-closable="true"
+      :close-on-esc="true"
+      display-directive="show"
+      class="ai-modal"
+      :style="modalStyle"
+    >
+      <div class="flex h-full flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-950">
+        <!-- 标题栏 -->
+        <div class="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 px-4 dark:border-slate-800">
+          <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            {{ t("doc.chat.title") }}
+          </span>
+          <button
+            class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+            @click="showAiModal = false"
+          >
+            <ZIcon name="ri:close-line" :size="18" />
+          </button>
+        </div>
+        <!-- 聊天区域 -->
+        <div class="flex-1 min-h-0">
+          <GuestAIView :notebook-id="docInfo.notebook_id" />
+        </div>
+      </div>
+    </NModal>
   </div>
 </template>
 
@@ -350,5 +408,31 @@ watch(activeNoteId, (newId) => {
 :deep(main)::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.42);
   border-radius: 999px;
+}
+
+/* AI 悬浮按钮：固定在右下角 */
+.ai-float-btn {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #3B6EA8;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 16px rgba(59, 110, 168, 0.3);
+  border-radius: 50%;
+}
+.ai-float-btn:hover {
+  color: #2d5a8a;
+  transform: scale(1.1);
+  box-shadow: 0 6px 24px rgba(59, 110, 168, 0.45);
 }
 </style>

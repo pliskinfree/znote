@@ -436,6 +436,8 @@ export const getPublicDoc = async (c: Context) => {
         msg: "doc.public.success",
         data: {
             doc: {
+                id: doc.id,
+                notebook_id: doc.notebook_id,
                 title: doc.title || (rootNotebook?.title || ""),
                 description: doc.description || (rootNotebook?.description || ""),
                 keywords: doc.keywords,
