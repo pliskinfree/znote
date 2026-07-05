@@ -901,7 +901,7 @@ onMounted(async () => {
 :deep(.ai-markdown) th:last-child, :deep(.ai-markdown) td:last-child { border-right: none; }
 :deep(.ai-markdown) tbody tr:last-child th,
 :deep(.ai-markdown) tbody tr:last-child td { border-bottom: none; }
-:deep(.ai-markdown) th { background: #f8afc; font-weight: 600; }
+:deep(.ai-markdown) th { background: #f8fafc; font-weight: 600; }
 :deep(.ai-markdown) img { max-width: 100%; border-radius: 0.375rem; cursor: zoom-in; }
 
 @media (max-width: 767px) {

@@ -26,21 +26,25 @@ const chatConfig = await getAIChatConfig();
 const chatOpenAI = createOpenAI({
     baseURL: chatConfig?.provider ? getBaseURL(chatConfig.provider) : "https://api.siliconflow.cn/v1",
     apiKey: chatConfig?.api_key || "",
-    fetch: async (input, init) => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120_000);
-        try {
-            init = init || {};
-            const origSignal = init.signal;
-            if (origSignal) {
-                origSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    fetch: Object.assign(
+        async (input: URL | RequestInfo, init?: RequestInit | BunFetchRequestInit) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120_000);
+            try {
+                init = init || {};
+                const origSignal = init.signal;
+                if (origSignal) {
+                    origSignal.addEventListener("abort", () => controller.abort(), { once: true });
+                }
+                init.signal = controller.signal;
+                return await fetch(input, init);
+            } finally {
+                clearTimeout(timeoutId);
             }
-            init.signal = controller.signal;
-            return await fetch(input, init);
-        } finally {
-            clearTimeout(timeoutId);
-        }
-    },
+        },
+        { preconnect: () => {} }
+    ),
+
 });
 const chatModel = chatOpenAI.chat(chatConfig?.model || "deepseek-ai/DeepSeek-V4-Flash");
 
@@ -129,17 +133,34 @@ const memory = new Memory({
 export const ragAgent = new Agent({
     id: "rag-agent",
     name: "笔记助手",
-    instructions: `你是用户的私人笔记AI助手。
+    instructions: `你是用户的私人笔记AI助手，帮助用户检索和回答基于他们笔记内容的问题。
 
-你可以使用 search-notes 工具搜索用户的笔记知识库。工具会返回最相关的笔记全文。
+你可以使用 search-notes 工具搜索用户的笔记知识库，工具会返回最相关的笔记全文。
 
-规则：
-1. **只在用户意图是查询笔记内容时才调用 search-notes 工具**。闲聊、问候（如"你好"、"谢谢"）、一般性问题不需要调用工具，直接回答即可
-2. 如果用户的提问涉及具体知识、技术问题、项目信息等，先调用 search-notes 检索
-3. 基于检索到的笔记内容回答，不要编造信息
-4. 如果笔记中没有相关信息，如实告知用户
-5. 回答时引用笔记标题（例如：根据《项目规划》笔记...）
-6. 保持回答简洁有条理`,
+## 何时调用 search-notes 工具
+
+在执行任何操作之前，根据用户的输入和对话上下文，判断用户意图：
+
+**需要调用工具**：
+- 用户提问涉及具体知识、技术、项目、方案、教程等问题
+- 用户询问"xxx 是什么"、"xxx 怎么做"、"xxx 配置在哪"等需要查资料的问题
+- 用户提到笔记中的某个主题，希望获取详情
+
+**不需要调用工具，直接回答**：
+- 打招呼（如"你好"、"嗨"、"早上好"）
+- 致谢（如"谢谢"、"感谢"）
+- 询问你的能力或功能（如"你能做什么"、"怎么用"）
+
+**不需要调用工具，但需礼貌拒绝**：
+- 与笔记内容完全无关的问题（如天气、新闻、闲聊八卦等）
+- 此时应告知用户：你是笔记助手，只能回答基于笔记内容的问题
+
+## 回答规则
+
+1. 基于检索到的笔记内容回答，不要编造信息
+2. 如果笔记中没有相关信息，如实告知用户
+3. 回答时引用笔记标题（例如：根据《项目规划》笔记...）
+4. 保持回答简洁有条理`,
     model: chatModel,
     tools: { "search-notes": searchNotesTool },
     memory,
