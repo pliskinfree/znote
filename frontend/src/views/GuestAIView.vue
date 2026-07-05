@@ -14,6 +14,7 @@ import { IncremarkContent, ThemeProvider } from "@incremark/vue";
 import type { DesignTokens } from "@incremark/theme";
 import "@incremark/theme/styles.css";
 import ZIcon from "@/components/DynamicIcon.vue";
+import { useMessage } from "naive-ui";
 import { fetchAIStatus } from "@/api/ai";
 
 const props = defineProps<{
@@ -21,6 +22,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const message = useMessage();
 
 /** 代码块主题 */
 const codeTheme = {
@@ -234,6 +236,7 @@ const sendMessage = async () => {
             messages.value[aiIndex].content = `❌ ${errMsg}`;
             messages.value[aiIndex].isStreaming = false;
             isStreaming.value = false;
+            message.error(errMsg);
             saveToStorage();
             return;
         }
@@ -243,6 +246,7 @@ const sendMessage = async () => {
             messages.value[aiIndex].content = "❌ 无法读取响应流";
             messages.value[aiIndex].isStreaming = false;
             isStreaming.value = false;
+            message.error(t("ai.error.stream_failed"));
             saveToStorage();
             return;
         }
@@ -340,6 +344,7 @@ const sendMessage = async () => {
             }
             messages.value[aiIndex].isStreaming = false;
             isStreaming.value = false;
+            message.error(t("ai.error.network"));
         }
     } finally {
         messages.value[aiIndex].isStreaming = false;

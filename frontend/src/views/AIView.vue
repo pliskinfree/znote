@@ -12,7 +12,7 @@
  */
 import { ref, computed, h, nextTick, onMounted, onBeforeUnmount, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { NDrawer, NDrawerContent, NSpin } from "naive-ui";
+import { NDrawer, NDrawerContent, NSpin, useMessage } from "naive-ui";
 import { IncremarkContent, ThemeProvider } from "@incremark/vue";
 import type { DesignTokens } from "@incremark/theme";
 import "@incremark/theme/styles.css";
@@ -32,6 +32,7 @@ import { fetchThreads, fetchThreadDetail, deleteThread, fetchAIStatus } from "@/
 import type { Notebook } from "@/types/note";
 
 const { t } = useI18n();
+const message = useMessage();
 
 /** 代码块主题 */
 const codeTheme = {
@@ -345,6 +346,7 @@ const sendMessage = async () => {
             messages.value[aiIndex].content = `❌ ${errMsg}`;
             messages.value[aiIndex].isStreaming = false;
             isStreaming.value = false;
+            message.error(errMsg);
             return;
         }
 
@@ -353,6 +355,7 @@ const sendMessage = async () => {
             messages.value[aiIndex].content = "❌ 无法读取响应流";
             messages.value[aiIndex].isStreaming = false;
             isStreaming.value = false;
+            message.error(t("ai.error.stream_failed"));
             return;
         }
 
@@ -448,6 +451,7 @@ const sendMessage = async () => {
             }
             messages.value[aiIndex].isStreaming = false;
             isStreaming.value = false;
+            message.error(t("ai.error.network"));
         }
     } finally {
         messages.value[aiIndex].isStreaming = false;
