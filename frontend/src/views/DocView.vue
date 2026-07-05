@@ -332,4 +332,23 @@ watch(activeNoteId, (newId) => {
 .drawer-slide-leave-to > div:last-child {
   transform: translateX(-100%);
 }
+
+/* 文档页面滚动条样式：左侧侧边栏 + 中间内容区 + 右侧 TOC */
+:deep(aside nav),
+:deep(main) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.42) transparent;
+}
+
+:deep(aside nav)::-webkit-scrollbar,
+:deep(main)::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+:deep(aside nav)::-webkit-scrollbar-thumb,
+:deep(main)::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.42);
+  border-radius: 999px;
+}
 </style>

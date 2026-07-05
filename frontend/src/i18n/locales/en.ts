@@ -497,7 +497,7 @@ export default {
     "ai.chat.new_thread": "New Chat",
     "ai.chat.select_notebook": "Select Notebook",
     "ai.chat.input_placeholder": "Type a message...",
-    "ai.chat.empty": "Select a notebook above to start chatting",
+    "ai.chat.empty": "Select a notebook to start chatting",
     "ai.chat.no_threads": "No conversations yet",
     "ai.chat.delete_thread": "Delete thread",
     "ai.chat.disclaimer": "AI responses are based on your notes content, for reference only",

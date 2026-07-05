@@ -497,7 +497,7 @@ export default {
     "ai.chat.new_thread": "新对话",
     "ai.chat.select_notebook": "选择笔记本",
     "ai.chat.input_placeholder": "输入消息...",
-    "ai.chat.empty": "选择左上角笔记本后开始对话",
+    "ai.chat.empty": "选择笔记本后开始对话",
     "ai.chat.no_threads": "暂无对话",
     "ai.chat.delete_thread": "删除会话",
     "ai.chat.disclaimer": "AI 回答基于笔记内容生成，仅供参考",

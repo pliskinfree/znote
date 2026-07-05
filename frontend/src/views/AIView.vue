@@ -6,16 +6,31 @@
  * SSE 流式对话，支持多轮对话和会话管理。
  * 移动端左侧栏以抽屉形式展示。
  */
-import { ref, computed, nextTick, onMounted, watch } from "vue";
+import { ref, computed, h, nextTick, onMounted, onBeforeUnmount, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { NSelect, NDrawer, NDrawerContent, NButton, NSpin } from "naive-ui";
-import { marked } from "marked";
+import { NDrawer, NDrawerContent, NSpin } from "naive-ui";
+import { IncremarkContent, ThemeProvider } from "@incremark/vue";
+import type { DesignTokens } from "@incremark/theme";
+import "@incremark/theme/styles.css";
 import ZIcon from "@/components/DynamicIcon.vue";
 import { fetchTopNotebooks } from "@/api/notebook";
 import { fetchThreads, fetchThreadDetail, deleteThread } from "@/api/ai";
 import type { Notebook } from "@/types/note";
 
 const { t } = useI18n();
+
+/** 代码块主题 */
+const codeTheme = {
+    color: {
+        code: {
+            blockBackground: "#1e293b",
+            blockText: "#e2e8f0",
+            inlineBackground: "#334155",
+            inlineText: "#e2e8f0",
+            headerBackground: "#0f172a",
+        },
+    },
+} as Partial<DesignTokens>;
 
 /** 工具调用信息 */
 interface ToolCall {
@@ -62,10 +77,96 @@ const scrollToBottom = () => {
     });
 };
 
-/** 笔记本下拉选项 */
-const notebookOptions = computed(() =>
-    notebooks.value.map((nb) => ({ label: `📔 ${nb.title}`, value: nb.id })),
-);
+/** 「滚动到底部」按钮可见性
+ *  仅在内容溢出（scrollHeight > clientHeight）且距底部 > 50px 时显示
+ *  满足用户「窗口高度不够（内容不溢出）时不显示按钮」的需求
+ */
+const showScrollToBottom = ref(false);
+
+const handleScroll = () => {
+    if (!messageContainer.value) return;
+    const { scrollTop, scrollHeight, clientHeight } = messageContainer.value;
+    const hasOverflow = scrollHeight > clientHeight + 1;
+    const distFromBottom = scrollHeight - scrollTop - clientHeight;
+    showScrollToBottom.value = hasOverflow && distFromBottom > 50;
+};
+
+/** 平滑滚动到消息底部 */
+const onScrollToBottom = () => {
+    if (messageContainer.value) {
+        messageContainer.value.scrollTo({ top: messageContainer.value.scrollHeight, behavior: "smooth" });
+    }
+};
+
+/** 当前选中笔记本的标题（供 trigger 按钮展示） */
+const currentNotebookTitle = computed(() => {
+    const nb = notebooks.value.find((n) => n.id === notebookId.value);
+    return nb?.title ?? "";
+});
+
+/** 笔记本下拉菜单：开合控制 + 点击外部关闭 + 选中即关闭 */
+const showNotebookMenu = ref(false);
+const notebookButtonRef = ref<HTMLElement | null>(null);
+const notebookMenuRef = ref<HTMLElement | null>(null);
+
+/** 点击外部关闭菜单（trigger 和 menu 内部的点击不触发） */
+const handleClickOutside = (e: MouseEvent) => {
+    const target = e.target as Node;
+    if (notebookMenuRef.value?.contains(target)) return;
+    if (notebookButtonRef.value?.contains(target)) return;
+    showNotebookMenu.value = false;
+};
+
+/** 选中笔记本并关闭菜单 */
+const handleSelectNotebook = (id: number) => {
+    notebookId.value = id;
+    showNotebookMenu.value = false;
+};
+
+onMounted(() => {
+    document.addEventListener("click", handleClickOutside);
+});
+onBeforeUnmount(() => {
+    document.removeEventListener("click", handleClickOutside);
+    messageContainer.value?.removeEventListener("scroll", handleScroll);
+});
+
+/** textarea 自动撑高：默认 1 行,内容多时自动增长,上限 3 行(约 88px) */
+const TEXTAREA_MAX_HEIGHT = 88;
+/** compact → expanded 切换的高度阈值(约 2.5 行,> 2 行后开始两段式布局) */
+const COMPACT_THRESHOLD = 60;
+/** 是否处于「内容多」状态(> 2 行),用于切换 grid 模板 */
+const isTall = ref(false);
+/** textarea DOM 引用,用于在 send 清空等程序化变更时同步高度 */
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
+
+/** 单一职责:设置 textarea 高度并更新 isTall */
+const growTextarea = (el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    const h = Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT);
+    el.style.height = `${h}px`;
+    el.style.overflowY = el.scrollHeight > TEXTAREA_MAX_HEIGHT ? "auto" : "hidden";
+    isTall.value = h > COMPACT_THRESHOLD;
+};
+
+const autoGrow = (e: Event) => {
+    growTextarea(e.target as HTMLTextAreaElement);
+};
+
+/** 自动聚焦输入框
+ *  - 仅在输入框可用（有笔记本）和非流式响应时聚焦
+ *  - disabled 元素 focus() 会被浏览器忽略,所以未选笔记本时此函数为 no-op
+ */
+const focusInput = () => {
+    if (textareaRef.value && notebookId.value && !isStreaming.value) {
+        textareaRef.value.focus();
+    }
+};
+
+/** 监听 inputMessage 变化,程序化修改(如 send 后清空)时同步高度和布局 */
+watch(inputMessage, () => {
+    if (textareaRef.value) growTextarea(textareaRef.value);
+});
 
 /** 当前选中线程 */
 const currentThread = computed(() =>
@@ -124,6 +225,8 @@ const startNewThread = () => {
     selectedThreadId.value = id;
     messages.value = [];
     isSidebarOpen.value = false;
+    // 新建会话后自动聚焦输入框（等待 DOM 更新后）
+    nextTick(() => focusInput());
 };
 
 /** 选中历史会话 */
@@ -167,6 +270,11 @@ const sendMessage = async () => {
     const text = inputMessage.value.trim();
     if (!text || isStreaming.value) return;
     if (!notebookId.value) return;
+
+    // 隐式创建：首次发送时若无 thread 则自动生成
+    if (!selectedThreadId.value) {
+        startNewThread();
+    }
 
     inputMessage.value = "";
     isStreaming.value = true;
@@ -349,12 +457,6 @@ const formatToolResult = (result: any): string => {
     return str.length > 500 ? str.slice(0, 500) + "..." : str;
 };
 
-/** 渲染 Markdown 为 HTML */
-const renderMarkdown = (content: string): string => {
-    if (!content) return "";
-    return marked.parse(content) as string;
-};
-
 /** 监听线程切换，自动滚动 */
 watch(selectedThreadId, () => {
     scrollToBottom();
@@ -362,6 +464,21 @@ watch(selectedThreadId, () => {
 
 onMounted(async () => {
     await Promise.all([loadThreads(), loadNotebooks()]);
+    // 只读默认 + 单向跟随：从 localStorage 读取当前激活的笔记本 id
+    const saved = localStorage.getItem("note-active-notebook-id");
+    const savedId = saved ? Number(saved) : null;
+    if (savedId && notebooks.value.some((nb) => nb.id === savedId)) {
+        notebookId.value = savedId;
+    } else if (notebooks.value.length > 0) {
+        notebookId.value = notebooks.value[0].id;
+    }
+    // 首屏自动聚焦输入框（等待 DOM 更新后）
+    await nextTick();
+    focusInput();
+
+    // 绑定消息区滚动事件（被动监听,不阻塞滚动）
+    messageContainer.value?.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
 });
 </script>
 
@@ -372,17 +489,19 @@ onMounted(async () => {
             class="hidden w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50 md:flex dark:border-slate-800 dark:bg-slate-900"
         >
             <!-- 新对话按钮 -->
-            <div class="p-3">
-                <NButton type="primary" block @click="startNewThread" :bordered="false">
-                    <template #icon>
-                        <ZIcon name="ri:add-line" :size="18" />
-                    </template>
+            <div class="border-b border-slate-200 p-3 dark:border-slate-800">
+                <button
+                    type="button"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#86A6CA] to-[#4A6FA5] px-4 py-2.5 text-sm font-medium text-white shadow-[0_4px_12px_rgba(74,111,165,0.3)] transition hover:from-[#7B9BBD] hover:to-[#3F5F95] hover:shadow-[0_6px_16px_rgba(74,111,165,0.4)] active:from-[#6F8DAE] active:to-[#345485] active:shadow-[0_2px_8px_rgba(74,111,165,0.35)] dark:shadow-[0_4px_16px_rgba(134,166,202,0.25)] dark:hover:shadow-[0_6px_20px_rgba(134,166,202,0.35)]"
+                    @click="startNewThread"
+                >
+                    <ZIcon name="ri:add-line" :size="18" />
                     {{ t("ai.chat.new_thread") }}
-                </NButton>
+                </button>
             </div>
 
             <!-- 会话列表 -->
-            <div class="flex-1 overflow-y-auto px-2 pb-2">
+            <div class="ai-thin-scrollbar flex-1 overflow-y-auto px-2 py-2">
                 <NSpin :show="loadingThreads" size="small">
                     <div v-if="threads.length === 0" class="py-8 text-center text-sm text-slate-400">
                         {{ t("ai.chat.no_threads") }}
@@ -413,12 +532,6 @@ onMounted(async () => {
         <NDrawer v-model:show="isSidebarOpen" placement="left" :width="280">
             <NDrawerContent :title="t('ai.chat.title')" closable>
                 <div class="flex flex-col">
-                    <NButton type="primary" block @click="startNewThread" :bordered="false" class="mb-3">
-                        <template #icon>
-                            <ZIcon name="ri:add-line" :size="18" />
-                        </template>
-                        {{ t("ai.chat.new_thread") }}
-                    </NButton>
                     <div v-if="threads.length === 0" class="py-8 text-center text-sm text-slate-400">
                         {{ t("ai.chat.no_threads") }}
                     </div>
@@ -445,37 +558,36 @@ onMounted(async () => {
 
         <!-- ====== 右侧主聊天区 ====== -->
         <div class="flex flex-1 flex-col min-w-0">
-            <!-- 顶栏 -->
-            <header
-                class="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 px-3 dark:border-slate-800"
-            >
-                <!-- 移动端菜单按钮 -->
+            <!-- 移动端固定顶栏：48px 高,汉堡左 + 新对话右,不随内容滚动 -->
+            <div class="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 md:hidden dark:border-slate-800 dark:bg-slate-950">
                 <button
-                    class="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 md:hidden dark:hover:bg-slate-800"
+                    class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                     @click="isSidebarOpen = true"
                 >
-                    <ZIcon name="ri:menu-line" :size="22" />
+                    <ZIcon name="ri:menu-line" :size="20" />
                 </button>
-
-                <!-- 笔记本选择器 -->
-                <div class="w-56 shrink-0">
-                    <NSelect
-                        v-model:value="notebookId"
-                        :options="notebookOptions"
-                        :placeholder="t('ai.chat.select_notebook')"
-                        size="small"
-                        clearable
-                    />
-                </div>
-
-                <!-- 会话标题 -->
-                <span class="truncate text-sm text-slate-500 dark:text-slate-400">
-                    {{ currentThread ? getThreadTitle(currentThread) : t("ai.chat.title") }}
-                </span>
-            </header>
+                <button
+                    class="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                    @click="startNewThread"
+                >
+                    <ZIcon name="ri:add-line" :size="18" />
+                    {{ t("ai.chat.new_thread") }}
+                </button>
+            </div>
 
             <!-- 消息区 -->
-            <div ref="messageContainer" class="flex-1 overflow-y-auto">
+            <div ref="messageContainer" class="ai-thin-scrollbar relative flex-1 overflow-y-auto">
+                <!-- 滚动到底部按钮：内容溢出且不在底部时,底部居中显示 -->
+                <Transition name="ai-fade">
+                    <button
+                        v-if="showScrollToBottom"
+                        class="absolute bottom-3 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-600 shadow-sm backdrop-blur-sm transition hover:border-[#86A6CA] hover:text-[#4A6FA5] hover:shadow-md dark:border-slate-700/60 dark:bg-slate-800/90 dark:text-slate-300 dark:hover:border-[#86A6CA] dark:hover:text-[#7DA3CC]"
+                        title="滚动到底部"
+                        @click="onScrollToBottom"
+                    >
+                        <ZIcon name="ri:arrow-down-line" :size="18" />
+                    </button>
+                </Transition>
                 <div class="mx-auto h-full max-w-3xl px-4 py-6">
                     <!-- 加载历史消息 -->
                     <div v-if="loadingMessages" class="flex h-full items-center justify-center">
@@ -487,7 +599,11 @@ onMounted(async () => {
                         v-else-if="!hasMessages"
                         class="flex h-full flex-col items-center justify-center text-center"
                     >
-                        <div class="mb-4 text-5xl">🤖</div>
+                        <ZIcon
+                            name="ri:robot-2-line"
+                            :size="72"
+                            class="mb-4 text-[#4A6FA5] drop-shadow-[0_4px_12px_rgba(74,111,165,0.4)] dark:text-[#7DA3CC] dark:drop-shadow-[0_4px_12px_rgba(125,163,204,0.5)]"
+                        />
                         <div class="text-lg font-medium text-slate-700 dark:text-slate-300">
                             {{ t("ai.chat.title") }}
                         </div>
@@ -513,10 +629,10 @@ onMounted(async () => {
                             </div>
 
                             <!-- AI 消息 -->
-                            <div
-                                v-else
-                                class="max-w-[85%] rounded-2xl rounded-bl-md bg-slate-100 px-4 py-3 text-sm leading-relaxed text-slate-800 dark:bg-slate-800 dark:text-slate-200"
-                            >
+                                <div
+                                    v-else
+                                    class="w-[100%] mb-[2em] rounded-2xl border border-slate-200 bg-slate-50/20 px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800/10 dark:text-slate-200"
+                                >
                                 <!-- 工具链调用展示 -->
                                 <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="mb-3">
                                     <div v-for="tool in msg.toolCalls" :key="tool.id" class="mb-2">
@@ -543,7 +659,7 @@ onMounted(async () => {
                                             />
                                         </div>
                                         <!-- 工具详情（可折叠） -->
-                                        <div v-if="tool._expanded" class="mt-1 rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800">
+                                        <div v-if="tool._expanded" class="mt-1 max-h-96 overflow-auto rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800">
                                             <!-- 输入参数 -->
                                             <div v-if="tool.input || tool.inputText" class="mb-2">
                                                 <div class="mb-1 font-medium text-slate-500">{{ t('ai.tool.input') }}</div>
@@ -552,12 +668,16 @@ onMounted(async () => {
                                             <!-- 执行结果 -->
                                             <div v-if="tool.result">
                                                 <div class="mb-1 font-medium text-slate-500">{{ t('ai.tool.result') }}</div>
-                                                <!-- 标准格式：{ context, sources } → context 用 markdown 渲染 -->
+                                                <!-- 标准格式：{ context, sources } → context 用 Incremark 渲染 -->
                                                 <template v-if="tool.result.context">
-                                                    <div
-                                                        class="markdown-body max-h-96 overflow-auto text-xs leading-relaxed"
-                                                        v-html="renderMarkdown(tool.result.context)"
-                                                    ></div>
+                                                    <div class="ai-markdown">
+                                                        <ThemeProvider :theme="codeTheme">
+                                                            <IncremarkContent
+                                                                :content="tool.result.context"
+                                                                :is-finished="true"
+                                                            />
+                                                        </ThemeProvider>
+                                                    </div>
                                                     <div v-if="tool.result.sources?.length" class="mt-2">
                                                         <div class="mb-1 text-[11px] font-medium text-slate-400 uppercase">Sources</div>
                                                         <ul class="list-inside list-disc space-y-0.5 text-slate-500">
@@ -574,26 +694,17 @@ onMounted(async () => {
                                     </div>
                                 </div>
 
-                                <!-- 消息内容（marked.js 实时渲染） -->
+                                <!-- 消息内容（IncremarkContent 实时渲染） -->
                                 <template v-if="msg.content">
-                                    <div
-                                        class="markdown-body prose prose-sm max-w-none break-words text-sm leading-relaxed"
-                                        :class="[
-                                            'prose-headings:text-slate-800 dark:prose-headings:text-slate-200',
-                                            'prose-p:text-slate-800 dark:prose-p:text-slate-200',
-                                            'prose-li:text-slate-800 dark:prose-li:text-slate-200',
-                                            'prose-a:text-blue-500',
-                                            'prose-code:before:content-none prose-code:after:content-none',
-                                            'prose-code:rounded prose-code:bg-slate-200 prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-code:text-rose-600',
-                                            'dark:prose-code:bg-slate-700 dark:prose-code:text-rose-400',
-                                        ]"
-                                        v-html="renderMarkdown(msg.content)"
-                                    ></div>
-                                    <!-- 打字机光标 -->
-                                    <span
-                                        v-if="msg.isStreaming"
-                                        class="ml-0.5 inline-block h-[1.1em] w-[2px] animate-pulse rounded-sm bg-blue-500 align-text-bottom"
-                                    ></span>
+                                    <div class="ai-markdown">
+                                        <ThemeProvider :theme="codeTheme">
+                                            <IncremarkContent
+                                                :content="msg.content"
+                                                :is-finished="!msg.isStreaming"
+                                                :incremark-options="{ typewriter: { enabled: msg.isStreaming } }"
+                                            />
+                                        </ThemeProvider>
+                                    </div>
                                 </template>
                                 <template v-else-if="msg.isStreaming">
                                     <span class="inline-flex items-center gap-1 text-slate-400">
@@ -611,41 +722,99 @@ onMounted(async () => {
             <!-- 输入区 -->
             <div class="shrink-0 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
                 <div class="mx-auto max-w-3xl px-4 py-3">
-                    <div class="flex items-end gap-2">
+                    <!-- 一体外框：grid 布局,根据 isTall 切换单行/双行模板 -->
+                    <div
+                        class="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 transition focus-within:border-[#86A6CA] focus-within:bg-slate-50 focus-within:shadow-[0_0_0_1px_#86A6CA,0_0_12px_2px_rgba(134,166,202,0.4)] dark:border-slate-700/60 dark:bg-slate-900/80 dark:focus-within:border-[#86A6CA] dark:focus-within:bg-slate-900 dark:focus-within:shadow-[0_0_0_1px_#86A6CA,0_0_12px_2px_rgba(134,166,202,0.4)]"
+                        :class="isTall ? 'ai-grid-expanded' : 'ai-grid-compact'"
+                    >
+                        <!-- 笔记本选择器 cell：原生 button + 绝对定位菜单 -->
+                        <div ref="notebookButtonRef" class="ai-cell-notebook relative shrink-0">
+                            <button
+                                type="button"
+                                class="flex h-[30px] items-center gap-1.5 px-2 text-sm transition active:bg-transparent"
+                                :class="notebookId
+                                    ? 'text-slate-700 dark:text-slate-200'
+                                    : 'text-amber-700 dark:text-amber-300'"
+                                @click.stop="showNotebookMenu = !showNotebookMenu"
+                            >
+                                <ZIcon name="ri:book-line" :size="16" />
+                                <span class="max-w-[120px] truncate">
+                                    {{ currentNotebookTitle || t("ai.chat.select_notebook") }}
+                                </span>
+                                <ZIcon
+                                    name="ri:arrow-down-s-line"
+                                    :size="14"
+                                    :class="['transition-transform', showNotebookMenu && 'rotate-180']"
+                                />
+                            </button>
+
+                            <Transition name="ai-menu">
+                                <div
+                                    v-if="showNotebookMenu"
+                                    ref="notebookMenuRef"
+                                    class="absolute bottom-full left-0 z-50 mb-1 min-w-[180px] rounded-lg border border-slate-200/80 bg-white py-1 dark:border-slate-700/60 dark:bg-slate-800"
+                                >
+                                    <button
+                                        v-for="nb in notebooks"
+                                        :key="nb.id"
+                                        type="button"
+                                        class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
+                                        :class="notebookId === nb.id
+                                            ? 'text-blue-600 dark:text-blue-400'
+                                            : 'text-slate-700 dark:text-slate-200'"
+                                        @click="handleSelectNotebook(nb.id)"
+                                    >
+                                        <ZIcon name="ri:book-line" :size="15" />
+                                        <span class="flex-1 truncate">{{ nb.title }}</span>
+                                        <ZIcon
+                                            v-if="notebookId === nb.id"
+                                            name="ri:check-line"
+                                            :size="14"
+                                            class="shrink-0"
+                                        />
+                                    </button>
+                                </div>
+                            </Transition>
+                        </div>
+
+                        <!-- textarea cell -->
                         <textarea
+                            ref="textareaRef"
                             v-model="inputMessage"
                             :placeholder="t('ai.chat.input_placeholder')"
-                            :disabled="!notebookId || !selectedThreadId"
+                            :disabled="!notebookId"
                             rows="1"
-                            class="max-h-32 min-h-[40px] flex-1 resize-none rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-blue-500 dark:focus:ring-blue-500"
-                            @input="(e) => {
-                                const el = e.target as HTMLTextAreaElement;
-                                el.style.height = 'auto';
-                                el.style.height = Math.min(el.scrollHeight, 160) + 'px';
-                            }"
+                            class="ai-cell-input block w-full resize-none border-0 bg-transparent px-2 py-0 text-sm leading-6 text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:placeholder:text-slate-500"
+                            style="max-height: 88px"
+                            @input="autoGrow"
                             @keydown="handleKeydown"
                         ></textarea>
-                        <button
-                            v-if="isStreaming"
-                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500 text-white transition hover:bg-red-600"
-                            @click="stopStreaming"
-                            title="停止"
-                        >
-                            <ZIcon name="ri:stop-fill" :size="18" />
-                        </button>
-                        <button
-                            v-else
-                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition"
-                            :class="notebookId && selectedThreadId && inputMessage.trim()
-                                ? 'bg-blue-500 text-white hover:bg-blue-600'
-                                : 'cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600'"
-                            :disabled="!notebookId || !selectedThreadId || !inputMessage.trim()"
-                            @click="sendMessage"
-                        >
-                            <ZIcon name="ri:send-plane-fill" :size="18" />
-                        </button>
+
+                        <!-- 发送按钮 cell -->
+                        <div class="ai-cell-send shrink-0">
+                            <button
+                                v-if="isStreaming"
+                                class="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-red-500 text-white transition hover:bg-red-600"
+                                @click="stopStreaming"
+                                title="停止"
+                            >
+                                <ZIcon name="ri:stop-fill" :size="14" />
+                            </button>
+                            <button
+                                v-else
+                                class="flex h-[34px] w-[34px] items-center justify-center rounded-full transition"
+                                :class="notebookId && inputMessage.trim()
+                                    ? 'bg-[#4A6FA5] text-white shadow-[0_2px_8px_rgba(74,111,165,0.4)] hover:bg-[#3F5F95] hover:shadow-[0_4px_12px_rgba(74,111,165,0.5)] active:bg-[#345485] active:shadow-[0_1px_4px_rgba(74,111,165,0.35)] dark:shadow-[0_2px_8px_rgba(134,166,202,0.35)] dark:hover:shadow-[0_4px_12px_rgba(134,166,202,0.45)]'
+                                    : 'cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600'"
+                                :disabled="!notebookId || !inputMessage.trim()"
+                                @click="sendMessage"
+                            >
+                                <ZIcon name="ri:send-plane-fill" :size="14" />
+                            </button>
+                        </div>
                     </div>
-                    <p class="mt-1.5 text-center text-xs text-slate-400 dark:text-slate-600">
+                    <!-- 免责声明：更小更灰 -->
+                    <p class="mt-2 text-center text-[11px] text-slate-400 dark:text-slate-500">
                         {{ t("ai.chat.disclaimer") }}
                     </p>
                 </div>
@@ -655,62 +824,161 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/** 图片自适应 */
-.markdown-body img {
+/** Incremark 组件内图片自适应 */
+:deep(.incremark-content img) {
     max-width: 100%;
     border-radius: 0.5rem;
-    margin: 0.5rem 0;
+}
+:deep(.incremark-theme-provider) {
+    height:auto;
 }
 
-/** 代码块样式 */
-.markdown-body :deep(pre) {
-    background-color: #1e293b;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    margin: 0.75rem 0;
-    overflow-x: auto;
+/** 聊天区代码块复制按钮：与 DocView/ShareView 风格保持一致
+ *  限定在 .ai-thin-scrollbar 作用域内（即消息区），避免污染其他场景
+ */
+:deep(.ai-thin-scrollbar .incremark-code .code-btn:hover:not(:disabled)) {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
-.markdown-body :deep(pre code) {
-    background: transparent;
-    color: #e2e8f0;
-    padding: 0;
-    font-size: 0.8125rem;
-    line-height: 1.6;
-    font-family: "Menlo", "Consolas", monospace;
+/** 聊天区 Markdown 内容样式（与 DocNote/ShareView 一致）
+ *  作用域：.ai-markdown 包裹的 Incremark 渲染内容
+ *  暗色模式适配后续单独处理
+ */
+.ai-markdown {
+    line-height: 1.75;
+    color: #334155;
+    overflow-wrap: break-word;
 }
-
-/** 表格样式 */
-.markdown-body :deep(table) {
+:deep(.ai-markdown) h1 { font-size: 1.75rem; font-weight: 700; margin-top: 2rem; margin-bottom: 0.75rem; color: #0f172a; }
+:deep(.ai-markdown) h2 { font-size: 1.4rem; font-weight: 600; margin-top: 1.75rem; margin-bottom: 0.5rem; color: #1e293b; padding-bottom: 0.3rem; border-bottom: 1px solid #e2e8f0; }
+:deep(.ai-markdown) h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #334155; }
+:deep(.ai-markdown) h4 { font-size: 1rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.5rem; color: #475569; }
+:deep(.ai-markdown) p { margin-bottom: 0.75rem; }
+:deep(.ai-markdown) ul, :deep(.ai-markdown) ol { margin-bottom: 0.75rem; padding-left: 1.5rem; }
+:deep(.ai-markdown) ul { list-style-type: disc; }
+:deep(.ai-markdown) ul ul { list-style-type: circle; }
+:deep(.ai-markdown) ul ul ul { list-style-type: square; }
+:deep(.ai-markdown) ol { list-style-type: decimal; }
+:deep(.ai-markdown) li { margin-bottom: 0.25rem; }
+:deep(.ai-markdown) a { color: #2563eb; text-decoration: underline; }
+:deep(.ai-markdown) blockquote { padding-left: 1rem; margin: 1rem 0; color: #64748b; overflow-wrap: break-word; word-break: break-word; }
+:deep(.ai-markdown) table {
     width: 100%;
-    border-collapse: collapse;
-    margin: 0.75rem 0;
-    font-size: 0.8125rem;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1rem 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
 }
-
-.markdown-body :deep(th),
-.markdown-body :deep(td) {
-    border: 1px solid #cbd5e1;
+:deep(.ai-markdown) th, :deep(.ai-markdown) td {
+    border-bottom: 1px solid #e2e8f0;
+    border-right: 1px solid #e2e8f0;
     padding: 0.5rem 0.75rem;
     text-align: left;
+    background: transparent;
+}
+:deep(.ai-markdown) th:last-child, :deep(.ai-markdown) td:last-child { border-right: none; }
+:deep(.ai-markdown) tbody tr:last-child th,
+:deep(.ai-markdown) tbody tr:last-child td { border-bottom: none; }
+:deep(.ai-markdown) th { background: #f8afc; font-weight: 600; }
+:deep(.ai-markdown) img { max-width: 100%; border-radius: 0.375rem; cursor: zoom-in; }
+
+@media (max-width: 767px) {
+    :deep(.ai-markdown) table {
+        display: block;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+    :deep(.ai-markdown) th, :deep(.ai-markdown) td { white-space: nowrap; }
 }
 
-.markdown-body :deep(th) {
-    background-color: #f1f5f9;
-    font-weight: 600;
+/** AI 输入区 grid 布局
+ *  - compact（≤2 行）：三列横向 [notebook | input | send]
+ *  - expanded（>2 行）：两行,首行 input 占满,次行 [notebook | 留白 | send]
+ *  同一组 DOM 节点,通过 grid-area 重定位,焦点不丢
+ */
+.ai-grid-compact {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "notebook input send";
+    align-items: center;
+    column-gap: 0.5rem;
+}
+.ai-grid-compact .ai-cell-notebook { grid-area: notebook; }
+.ai-grid-compact .ai-cell-input    { grid-area: input; min-width: 0; }
+.ai-grid-compact .ai-cell-send     { grid-area: send; }
+
+.ai-grid-expanded {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+        "input input input"
+        "notebook . send";
+    align-items: center;
+    row-gap: 0.375rem;
+    column-gap: 0.5rem;
+}
+.ai-grid-expanded .ai-cell-notebook { grid-area: notebook; justify-self: start; }
+.ai-grid-expanded .ai-cell-input    { grid-area: input; min-width: 0; }
+.ai-grid-expanded .ai-cell-send     { grid-area: send; justify-self: end; }
+
+/** textarea 高度变化时平滑过渡(配合 JS 显式设置 height) */
+.ai-cell-input {
+    transition: height 0.15s ease;
 }
 
-/** 引用块 */
-.markdown-body :deep(blockquote) {
-    border-left: 3px solid #3b82f6;
-    padding-left: 1rem;
-    margin: 0.5rem 0;
-    color: #64748b;
+/** 细滚动条：覆盖 PC 侧栏会话列表 + 消息区
+ *  6px 宽,默认半透明,hover 时加深,明暗模式分别配色
+ */
+.ai-thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+.ai-thin-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.ai-thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.ai-thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.4);
+    border-radius: 3px;
+}
+.ai-thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.6);
+}
+.dark .ai-thin-scrollbar {
+    scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+}
+.dark .ai-thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.3);
+}
+.dark .ai-thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.5);
 }
 
-/** 分隔线 */
-.markdown-body :deep(hr) {
-    border-color: #e2e8f0;
-    margin: 1rem 0;
+/** 自定义笔记本菜单：淡入 + 上移 4px */
+.ai-menu-enter-active,
+.ai-menu-leave-active {
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.ai-menu-enter-from,
+.ai-menu-leave-to {
+    opacity: 0;
+    transform: translateY(4px);
+}
+
+/** 滚动到底部按钮：淡入 + 上移 8px（保留 -translate-x-1/2 居中） */
+.ai-fade-enter-active,
+.ai-fade-leave-active {
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.ai-fade-enter-from,
+.ai-fade-leave-to {
+    opacity: 0;
+    transform: translate(-50%, 8px);
 }
 </style>
