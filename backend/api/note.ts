@@ -4,6 +4,7 @@ import { unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { vectorStore, INDEX_NAME } from "@/db/vector";
 import { checkNotebookOwnership, checkNoteOwnership } from "@/utils/ownership";
 import { FILES_BASE_PATH } from "@/utils/file";
 
@@ -527,6 +528,16 @@ export const emptyTrash = async (c: Context) => {
                 }
             }
 
+            // 清理向量库中这批笔记的向量数据（失败不阻塞，静默跳过）
+            try {
+                await vectorStore.deleteVectors({
+                    indexName: INDEX_NAME,
+                    filter: { note_id: { $in: batchIds }, user_id: uid },
+                });
+            } catch {
+                // 向量清理失败不影响结果，跳过
+            }
+
             totalDeleted += notes.length;
         } catch {
             // 该批次处理失败，跳过继续处理下一批
@@ -720,6 +731,16 @@ export const permanentDeleteNote = async (c: Context) => {
         } catch {
             // 磁盘文件删除失败不影响结果，跳过
         }
+    }
+
+    // 清理向量库中该笔记的向量数据（失败不阻塞返回，仅跳过）
+    try {
+        await vectorStore.deleteVectors({
+            indexName: INDEX_NAME,
+            filter: { note_id: id, user_id: uid },
+        });
+    } catch {
+        // 向量清理失败不影响结果，跳过
     }
 
     return c.json({
