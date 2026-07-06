@@ -9,6 +9,7 @@
  *   - notebookId: 公开文档对应的顶层笔记本 ID
  */
 import { ref, computed, nextTick, onMounted, watch } from "vue";
+import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { IncremarkContent, ThemeProvider } from "@incremark/vue";
 import type { DesignTokens } from "@incremark/theme";
@@ -18,8 +19,10 @@ import { useMessage } from "naive-ui";
 import { fetchAIStatus } from "@/api/ai";
 
 const props = defineProps<{
-    notebookId: number;
+    notebookId?: number;
 }>();
+
+const route = useRoute();
 
 const { t } = useI18n();
 const message = useMessage();
@@ -63,14 +66,26 @@ interface ThreadStorage {
     messages: ChatMessage[];
 }
 
+// ==================== 有效 notebook_id 解析 ====================
+
+/** 优先取 props，回退到 URL query 参数 */
+const effectiveNotebookId = computed(() => {
+    if (props.notebookId) return props.notebookId;
+    const q = Number(route.query.notebook_id);
+    return q > 0 ? q : 0;
+});
+
+/** 是否获取到了有效的 notebook_id */
+const hasValidNotebookId = computed(() => effectiveNotebookId.value > 0);
+
 // ==================== sessionStorage 操作 ====================
 
-const STORAGE_KEY = `guest-chat-${props.notebookId}`;
+const STORAGE_KEY = computed(() => `guest-chat-${effectiveNotebookId.value}`);
 
 /** 从 sessionStorage 加载会话数据 */
 const loadFromStorage = (): ThreadStorage | null => {
     try {
-        const raw = sessionStorage.getItem(STORAGE_KEY);
+        const raw = sessionStorage.getItem(STORAGE_KEY.value);
         if (raw) return JSON.parse(raw);
     } catch { /* ignore */ }
     return null;
@@ -79,7 +94,7 @@ const loadFromStorage = (): ThreadStorage | null => {
 /** 保存会话数据到 sessionStorage */
 const saveToStorage = () => {
     try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        sessionStorage.setItem(STORAGE_KEY.value, JSON.stringify({
             thread_id: threadId.value,
             messages: messages.value,
         }));
@@ -88,7 +103,7 @@ const saveToStorage = () => {
 
 /** 清空 sessionStorage */
 const clearStorage = () => {
-    try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    try { sessionStorage.removeItem(STORAGE_KEY.value); } catch { /* ignore */ }
 };
 
 /** 生成 16 位随机 thread_id */
@@ -222,7 +237,7 @@ const sendMessage = async () => {
         const response = await fetch(`${BASE_URL}/api/doc/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ notebook_id: props.notebookId, thread_id: threadId.value, message: text }),
+            body: JSON.stringify({ notebook_id: effectiveNotebookId.value, thread_id: threadId.value, message: text }),
             signal: controller.signal,
         });
 
@@ -401,9 +416,20 @@ onMounted(async () => {
 
 <template>
     <div class="flex h-full bg-white dark:bg-slate-950">
+        <!-- 未获取到有效文档 ID -->
+        <div
+            v-if="!hasValidNotebookId"
+            class="flex flex-1 flex-col items-center justify-center bg-white px-6 text-center dark:bg-slate-950"
+        >
+            <ZIcon name="ri:file-warning-line" :size="72" class="mb-4 text-slate-300 dark:text-slate-600" />
+            <div class="text-lg font-medium text-slate-700 dark:text-slate-300">
+                {{ t("doc.chat.no_notebook_id") }}
+            </div>
+        </div>
+
         <!-- AI 未启用：显示禁用提示 -->
         <div
-            v-if="!aiEnabled"
+            v-else-if="!aiEnabled"
             class="flex flex-1 flex-col items-center justify-center bg-white px-6 text-center dark:bg-slate-950"
         >
             <ZIcon name="ri:robot-2-line" :size="72" class="mb-4 text-slate-300 dark:text-slate-600" />
@@ -420,7 +446,7 @@ onMounted(async () => {
             <div class="flex flex-1 flex-col min-w-0">
                 <!-- 消息区 -->
                 <div ref="messageContainer" class="ai-thin-scrollbar relative flex-1 overflow-y-auto">
-                    <div class="mx-auto h-full max-w-3xl px-1 py-2">
+                    <div class="mx-auto h-full max-w-3xl px-3 py-2 sm:px-1">
                         <!-- 欢迎引导 -->
                         <div
                             v-if="!hasMessages"
@@ -458,7 +484,7 @@ onMounted(async () => {
                                 <!-- AI 消息 -->
                                 <div
                                     v-else
-                                    class="w-[100%] mb-[2em] rounded-2xl border border-slate-200 bg-slate-50/20 px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800/10 dark:text-slate-200"
+                                    class="w-full max-w-[100%] mb-[2em] rounded-2xl border border-slate-200 bg-slate-50/20 px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-800/10 dark:text-slate-200"
                                 >
                                     <!-- 工具链调用展示 -->
                                     <div v-if="msg.toolCalls && msg.toolCalls.length > 0" class="mb-3">
@@ -546,7 +572,7 @@ onMounted(async () => {
 
                 <!-- 输入区 -->
                 <div class="shrink-0 border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-                    <div class="mx-auto max-w-3xl px-1 py-3">
+                    <div class="mx-auto max-w-3xl px-3 py-3 sm:px-1">
                         <div
                             class="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-1.5 transition focus-within:border-[#86A6CA] focus-within:bg-slate-50 focus-within:shadow-[0_0_0_1px_#86A6CA,0_0_12px_2px_rgba(134,166,202,0.4)] dark:border-slate-700/60 dark:bg-slate-900/80 dark:focus-within:border-[#86A6CA] dark:focus-within:bg-slate-900 dark:focus-within:shadow-[0_0_0_1px_#86A6CA,0_0_12px_2px_rgba(134,166,202,0.4)]"
                         >

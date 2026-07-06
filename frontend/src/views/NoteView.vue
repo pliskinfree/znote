@@ -1514,7 +1514,7 @@ const handleSaveTitle = async () => {
   height: 52px;
   padding: 0;
   border: none;
-  background: transparent;
+  background: #ffffff;
   color: #3B6EA8;
   cursor: pointer;
   transition: color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;

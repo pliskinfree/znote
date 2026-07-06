@@ -53,6 +53,11 @@ const router = createRouter({
             component: () => import("@/views/ShareView.vue"),
         },
         {
+            path: "/doc/_ai",
+            name: "docAI",
+            component: () => import("@/views/DocAIView.vue"),
+        },
+        {
             path: "/doc/:slug",
             name: "doc",
             component: () => import("@/views/DocView.vue"),

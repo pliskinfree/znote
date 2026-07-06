@@ -542,6 +542,7 @@ export default {
     "doc.chat.notebook_not_found": "笔记本不存在",
     "doc.chat.agent_not_found": "AI 服务不可用",
     "doc.chat.error": "AI 对话失败",
+    "doc.chat.no_notebook_id": "未获取到有效文档ID",
     "ai.error.network": "网络连接失败，请检查网络",
     "ai.error.stream_failed": "无法读取响应流",
 };

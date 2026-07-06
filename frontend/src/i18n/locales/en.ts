@@ -542,6 +542,7 @@ export default {
     "doc.chat.notebook_not_found": "Notebook not found",
     "doc.chat.agent_not_found": "AI service unavailable",
     "doc.chat.error": "AI chat failed",
+    "doc.chat.no_notebook_id": "No valid document ID",
     "ai.error.network": "Network error, please check your connection",
     "ai.error.stream_failed": "Failed to read response stream",
 };

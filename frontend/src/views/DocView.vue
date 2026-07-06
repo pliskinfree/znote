@@ -41,9 +41,16 @@ const sidebarOpen = ref(false);
 /** AI 聊天弹窗显隐 */
 const showAiModal = ref(false);
 
-/** AI 按钮点击处理 */
+/** AI 按钮点击处理
+ * PC 端：打开弹窗
+ * 移动端：新窗口打开 /doc/_ai
+ */
 const handleAiClick = () => {
-    showAiModal.value = true;
+    if (isMobile.value) {
+        window.open(`/doc/_ai?notebook_id=${docInfo.value.notebook_id}`, "_blank");
+    } else {
+        showAiModal.value = true;
+    }
 };
 
 /** 响应式 AI 弹窗尺寸：PC 窄弹窗，移动端全屏 */
@@ -423,7 +430,7 @@ watch(activeNoteId, (newId) => {
   height: 52px;
   padding: 0;
   border: none;
-  background: transparent;
+  background: #ffffff;
   color: #3B6EA8;
   cursor: pointer;
   transition: color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
