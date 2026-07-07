@@ -148,7 +148,7 @@ export const updateNote = async (c: Context) => {
 
     // 取当前笔记旧值，同时校验归属（user_id 条件防越权，一次查询兼得旧值与权限校验）
     const oldNote = await db
-        .select({ title: schema.notes.title, content: schema.notes.content })
+        .select({ title: schema.notes.title, content: schema.notes.content, allow_vectorize: schema.notes.allow_vectorize })
         .from(schema.notes)
         .where(and(
             eq(schema.notes.id, id),
@@ -197,7 +197,14 @@ export const updateNote = async (c: Context) => {
     }
     if (is_pinned !== undefined) updates.is_pinned = is_pinned;
     if (sort_order !== undefined) updates.sort_order = sort_order;
-    if (allow_vectorize !== undefined) updates.allow_vectorize = allow_vectorize;
+    if (allow_vectorize !== undefined) {
+        updates.allow_vectorize = allow_vectorize;
+        // 关闭向量化时，重置向量化状态，后续向量清理将在事务外执行
+        if (allow_vectorize === 0 && oldNote.allow_vectorize === 1) {
+            updates.is_vectorized = 0;
+            updates.vectorized_at = null;
+        }
+    }
 
     // 仅当 title 或 content 实际变化时才生成历史版本
     // content 的 trim 仅用于判定是否记版本，实际存储保留原值（含空白）
@@ -251,6 +258,18 @@ export const updateNote = async (c: Context) => {
             .returning()
             .get();
     });
+
+    // 关闭向量化时，清理向量库中该笔记的历史向量数据
+    if (allow_vectorize === 0 && oldNote.allow_vectorize === 1) {
+        try {
+            await vectorStore.deleteVectors({
+                indexName: INDEX_NAME,
+                filter: { note_id: id, user_id: uid },
+            });
+        } catch {
+            // 向量清理失败不影响结果，跳过
+        }
+    }
 
     return c.json({
         code: 200,

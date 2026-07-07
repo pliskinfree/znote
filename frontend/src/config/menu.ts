@@ -24,6 +24,12 @@ export const menuConfig = [
         route: "/dashboard/users",
     },
     {
+        id: "help",
+        titleKey: "dashboard.help",
+        icon: "ri:question-answer-line",
+        route: "/dashboard/help",
+    },
+    {
         id: "system",
         titleKey: "dashboard.system",
         icon: "ri:settings-3-line",

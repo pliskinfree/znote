@@ -32,6 +32,7 @@ export default {
     "dashboard.system": "系统设置",
     "dashboard.site_setting": "站点设置",
     "dashboard.ai_setting": "AI设置",
+    "dashboard.help": "获取帮助",
     "login.welcome": "欢迎登录",
     "login.description": "使用你的账号进入后台框架。",
     "login.email_or_username": "邮箱 / 用户名",
@@ -551,4 +552,9 @@ export default {
     "doc.chat.no_notebook_id": "未获取到有效文档ID",
     "ai.error.network": "网络连接失败，请检查网络",
     "ai.error.stream_failed": "无法读取响应流",
+    "help.chat.title": "让我来为您提供帮助",
+    "help.chat.input_placeholder": "请输入与ZNote相关的问题，我会为您解答。",
+    "help.chat.disclaimer_prefix": "AI 回答基于",
+    "help.chat.disclaimer_link_text": "ZNote文档",
+    "help.chat.disclaimer_suffix": "内容生成，仅供参考",
 };

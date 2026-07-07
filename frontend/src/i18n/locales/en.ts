@@ -32,6 +32,7 @@ export default {
     "dashboard.system": "System Settings",
     "dashboard.site_setting": "Site Settings",
     "dashboard.ai_setting": "AI Settings",
+    "dashboard.help": "Get Help",
     "login.welcome": "Welcome Back",
     "login.description": "Sign in to your account to access the dashboard.",
     "login.email_or_username": "Email / Username",
@@ -551,4 +552,9 @@ export default {
     "doc.chat.no_notebook_id": "No valid document ID",
     "ai.error.network": "Network error, please check your connection",
     "ai.error.stream_failed": "Failed to read response stream",
+    "help.chat.title": "Let me assist you",
+    "help.chat.input_placeholder": "Ask me your questions about ZNote, I'll answer them for you.",
+    "help.chat.disclaimer_prefix": "AI responses are based on ",
+    "help.chat.disclaimer_link_text": "ZNote documentation",
+    "help.chat.disclaimer_suffix": " content, for reference only",
 };

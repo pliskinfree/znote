@@ -31,6 +31,7 @@ declare module 'vue' {
     DocTreeNode: typeof import('./src/components/doc/DocTreeNode.vue')['default']
     DynamicIcon: typeof import('./src/components/DynamicIcon.vue')['default']
     ExportDialog: typeof import('./src/components/note/dialogs/ExportDialog.vue')['default']
+    HelpPanel: typeof import('./src/components/dashboard/HelpPanel.vue')['default']
     HomePanel: typeof import('./src/components/dashboard/HomePanel.vue')['default']
     ImportDialog: typeof import('./src/components/note/dialogs/ImportDialog.vue')['default']
     InfoDialog: typeof import('./src/components/note/dialogs/InfoDialog.vue')['default']
